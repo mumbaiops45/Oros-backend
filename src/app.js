@@ -8,6 +8,7 @@ import AuthRoutes from "./routes/auth.route.js";
 import CategoryRoutes from "./routes/category.route.js";
 import  SubCategoryRoutes from "./routes/subCategory.routes.js";
 import productRoutes from "./routes/product.route.js";
+import cartRoutes from "./routes/cart.route.js";
 
 const app = expres();
 
@@ -21,6 +22,7 @@ app.use("/api/auth",AuthRoutes)
 app.use("/api/category",CategoryRoutes)
 app.use("/api/subCategory",SubCategoryRoutes)
 app.use("/api/product",productRoutes)
+app.use("/api/cart",cartRoutes)
 
 app.use(errorHandler)
 
