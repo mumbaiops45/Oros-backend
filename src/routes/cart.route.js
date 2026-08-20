@@ -15,7 +15,7 @@ import {
 
 const router = express.Router();
 
-// every cart route belongs to the logged in user
+
 router.use(protect);
 
 router.post("/", addToCartController);

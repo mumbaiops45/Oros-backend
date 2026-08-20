@@ -57,6 +57,14 @@ import {
     bulkMediaUpload
 } from "../middlewares/upload.middleware.js";
 
+import {
+    createProductShippingController,
+    getAllProductShippingController,
+    getProductShippingByProductController,
+    updateProductShippingController,
+    deleteProductShippingController
+} from "../controllers/productShipping.controller.js";
+
 const router = express.Router();
 
 /* ------------------------------------------------------------------
@@ -222,6 +230,33 @@ router.delete(
     deleteMedia
 );
 
+// productShipping
+
+router.get(
+    "/shipping",protect,
+    getAllProductShippingController
+);
+
+
+router.post(
+    "/shipping",protect,
+    authorize("admin"),
+    createProductShippingController
+);
+
+
+router.patch(
+    "/shipping/:id",protect,
+    authorize("admin"),
+    updateProductShippingController
+);
+
+
+router.delete(
+    "/shipping/:id",protect,
+    authorize("admin"),
+    deleteProductShippingController
+);
 /* ------------------------------------------------------------------
    PRODUCT
 ------------------------------------------------------------------ */
