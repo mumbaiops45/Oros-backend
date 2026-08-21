@@ -19,6 +19,10 @@ import {
 } from "./packing.service.js";
 
 
+import {
+    getShiprocketRates
+} from "./shiprocket.service.js";
+
 export const prepareShippingService =
     async (userId) => {
 
@@ -281,5 +285,100 @@ export const prepareShippingService =
             },
 
             packages
+        };
+    };
+
+    export const getShippingRatesService =
+    async (userId, data) => {
+
+        const {
+            deliveryPincode
+        } = data;
+
+
+        if (!deliveryPincode) {
+
+            throw httpError(
+                400,
+                "Delivery pincode is required"
+            );
+        }
+
+
+        if (
+            !/^\d{6}$/.test(
+                deliveryPincode
+            )
+        ) {
+
+            throw httpError(
+                400,
+                "Invalid delivery pincode"
+            );
+        }
+
+
+        /*
+         * Get trusted shipping data
+         * from server
+         */
+
+        const shippingData =
+            await prepareShippingService(
+                userId
+            );
+
+
+        const packages =
+            shippingData.packages;
+
+
+        if (
+            !packages ||
+            !packages.length
+        ) {
+
+            throw httpError(
+                400,
+                "No packages found"
+            );
+        }
+
+
+        const pickupPincode =
+            process.env
+                .SHIPMENT_PICKUP_PINCODE;
+
+
+        if (!pickupPincode) {
+
+            throw httpError(
+                500,
+                "Shipment pickup pincode is not configured"
+            );
+        }
+
+
+        /*
+         * Call Shiprocket
+         */
+
+        const rates =
+            await getShiprocketRates({
+                pickupPincode,
+                deliveryPincode,
+                packages
+            });
+
+
+        return {
+
+            pickupPincode,
+
+            deliveryPincode,
+
+            packages,
+
+            rates
         };
     };

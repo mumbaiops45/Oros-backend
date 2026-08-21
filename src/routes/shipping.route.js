@@ -1,7 +1,7 @@
 import express from "express";
 
 import {
-    prepareShippingController
+    prepareShippingController,getShippingRatesController
 } from "../controllers/shipping.controller.js";
 
 import {
@@ -20,5 +20,8 @@ router.get(
     prepareShippingController
 );
 
-
+router.post(
+    "/rates",
+    getShippingRatesController
+);
 export default router;
