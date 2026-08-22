@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Cart from "../models/cart.model.js";
 
 import Product from "../models/product.model.js";
@@ -18,17 +19,21 @@ import {
     createPackages
 } from "./packing.service.js";
 
-
 import {
     getShiprocketRates
 } from "./shiprocket.service.js";
+
+import ShippingQuote
+    from "../models/shippingQuote.model.js";
+
+
 
 export const prepareShippingService =
     async (userId) => {
 
         /*
-            1. Get customer address
-        */
+         * 1. Get customer address
+         */
 
         const address =
             await Address.findOne({
@@ -37,6 +42,7 @@ export const prepareShippingService =
 
 
         if (!address) {
+
             throw httpError(
                 400,
                 "Please add your delivery address first"
@@ -45,8 +51,8 @@ export const prepareShippingService =
 
 
         /*
-            2. Get cart
-        */
+         * 2. Get cart
+         */
 
         const cartItems =
             await Cart.find({
@@ -55,6 +61,7 @@ export const prepareShippingService =
 
 
         if (!cartItems.length) {
+
             throw httpError(
                 400,
                 "Cart is empty"
@@ -63,8 +70,8 @@ export const prepareShippingService =
 
 
         /*
-            3. Get product IDs
-        */
+         * 3. Get product IDs
+         */
 
         const productIds =
             cartItems.map(
@@ -73,8 +80,8 @@ export const prepareShippingService =
 
 
         /*
-            4. Get everything together
-        */
+         * 4. Get everything together
+         */
 
         const [
             products,
@@ -98,10 +105,12 @@ export const prepareShippingService =
             ShippingPackage.find({
                 isActive: true
             }).lean()
+
         ]);
 
 
         if (!shippingBoxes.length) {
+
             throw httpError(
                 500,
                 "No active shipping packages configured"
@@ -110,8 +119,8 @@ export const prepareShippingService =
 
 
         /*
-            5. Create maps
-        */
+         * 5. Create maps
+         */
 
         const productMap =
             new Map(
@@ -136,8 +145,8 @@ export const prepareShippingService =
 
 
         /*
-            6. Prepare packing items
-        */
+         * 6. Prepare packing items
+         */
 
         const packingItems = [];
 
@@ -157,7 +166,7 @@ export const prepareShippingService =
 
                 throw httpError(
                     400,
-                    `A product ${product} in your cart is no longer available`
+                    "A product in your cart is no longer available"
                 );
             }
 
@@ -199,13 +208,14 @@ export const prepareShippingService =
 
                 height:
                     shipping.height
+
             });
         }
 
 
         /*
-            7. Run Packaging Engine
-        */
+         * 7. Run packaging engine
+         */
 
         const packages =
             createPackages(
@@ -215,13 +225,8 @@ export const prepareShippingService =
 
 
         /*
-            8. Pickup location
-
-            This should NOT come
-            from customer.
-
-            It comes from ENV/config.
-        */
+         * 8. Pickup location
+         */
 
         const pickupPincode =
             process.env
@@ -238,9 +243,8 @@ export const prepareShippingService =
 
 
         /*
-            9. Return everything required
-               by shipping aggregator.
-        */
+         * 9. Return shipping data
+         */
 
         return {
 
@@ -250,6 +254,7 @@ export const prepareShippingService =
             },
 
             delivery: {
+
                 name:
                     address.name,
 
@@ -275,26 +280,29 @@ export const prepareShippingService =
                     address.country,
 
                 pincode:
-                    address.pincode,
-
-                // latitude:
-                //     address.latitude,
-
-                // longitude:
-                //     address.longitude
+                    address.pincode
             },
 
             packages
         };
     };
 
-    export const getShippingRatesService =
-    async (userId, data) => {
+
+
+export const getShippingRatesService =
+    async (
+        userId,
+        data
+    ) => {
 
         const {
             deliveryPincode
         } = data;
 
+
+        /*
+         * 1. Validate pincode
+         */
 
         if (!deliveryPincode) {
 
@@ -319,8 +327,7 @@ export const prepareShippingService =
 
 
         /*
-         * Get trusted shipping data
-         * from server
+         * 2. Get trusted packages
          */
 
         const shippingData =
@@ -345,6 +352,10 @@ export const prepareShippingService =
         }
 
 
+        /*
+         * 3. Pickup pincode
+         */
+
         const pickupPincode =
             process.env
                 .SHIPMENT_PICKUP_PINCODE;
@@ -360,18 +371,60 @@ export const prepareShippingService =
 
 
         /*
-         * Call Shiprocket
+         * 4. Get Shiprocket rates
          */
 
         const rates =
             await getShiprocketRates({
+
                 pickupPincode,
+
                 deliveryPincode,
+
                 packages
+
             });
 
 
+        /*
+         * 5. Create shipping quote
+         *
+         * Quote valid for 10 minutes
+         */
+
+        const expiresAt =
+            new Date(
+                Date.now() +
+                10 * 60 * 1000
+            );
+
+
+        const quote =
+            await ShippingQuote.create({
+
+                user: userId,
+
+                pickupPincode,
+
+                deliveryPincode,
+
+                packages,
+
+                rates,
+
+                expiresAt
+
+            });
+
+
+        /*
+         * 6. Return rates to frontend
+         */
+
         return {
+
+            quoteId:
+                quote._id,
 
             pickupPincode,
 
@@ -379,6 +432,114 @@ export const prepareShippingService =
 
             packages,
 
-            rates
+            rates,
+
+            expiresAt
+
+        };
+    };
+
+export const getSelectedShippingRate =
+    async (
+        userId,
+        quoteId,
+        courierId
+    ) => {
+
+        if (
+            !mongoose.Types.ObjectId.isValid(
+                quoteId
+            )
+        ) {
+            throw httpError(
+                400,
+                "Invalid shipping quote ID"
+            );
+        }
+
+
+        if (!courierId) {
+
+            throw httpError(
+                400,
+                "Shipping courier is required"
+            );
+        }
+
+
+        const quote =
+            await ShippingQuote.findOne({
+                _id: quoteId,
+                user: userId
+            }).lean();
+
+
+        if (!quote) {
+
+            throw httpError(
+                400,
+                "Shipping quote not found"
+            );
+        }
+
+
+        if (
+            new Date(
+                quote.expiresAt
+            ) < new Date()
+        ) {
+
+            throw httpError(
+                400,
+                "Shipping quote has expired"
+            );
+        }
+
+
+        const selectedRate =
+            quote.rates.find(
+                rate =>
+                    Number(
+                        rate.courierId
+                    ) ===
+                    Number(
+                        courierId
+                    )
+            );
+
+
+        if (!selectedRate) {
+
+            throw httpError(
+                400,
+                "Selected courier is not available"
+            );
+        }
+
+
+        return {
+
+            pickupPincode:
+                quote.pickupPincode,
+
+            deliveryPincode:
+                quote.deliveryPincode,
+
+            courierId:
+                selectedRate.courierId,
+
+            courierName:
+                selectedRate.courierName,
+
+            shippingCharge:
+                selectedRate.totalCharge,
+
+            estimatedDelivery:
+                new Date(
+                    selectedRate.estimatedDays
+                ),
+
+            packages:
+                quote.packages
         };
     };

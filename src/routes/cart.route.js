@@ -2,7 +2,7 @@
 
 import express from "express";
 
-import { protect } from "../middlewares/auth.middleware.js";
+import { protect,authorize } from "../middlewares/auth.middleware.js";
 
 import {
     addToCartController,
@@ -18,14 +18,14 @@ const router = express.Router();
 
 router.use(protect);
 
-router.post("/", addToCartController);
+router.post("/",authorize("user"), addToCartController);
 
 router.get("/", getCartController);
 
-router.patch("/:id", updateCartQuantityController);
+router.patch("/:id",authorize("user"), updateCartQuantityController);
 
-router.delete("/clear", clearCartController);
+router.delete("/clear",authorize("user"), clearCartController);
 
-router.delete("/:id", removeCartItemController);
+router.delete("/:id",authorize("user"), removeCartItemController);
 
 export default router;

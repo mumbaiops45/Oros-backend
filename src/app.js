@@ -12,6 +12,7 @@ import cartRoutes from "./routes/cart.route.js";
 import shippingPackageRoutes from "./routes/shippingPackage.route.js";
 import addressRoutes from "./routes/address.route.js";
 import shippingRoutes from "./routes/shipping.route.js";
+import orderRoutes from "./routes/order.route.js";
 
 const app = expres();
 
@@ -29,7 +30,7 @@ app.use("/api/cart",cartRoutes)
 app.use("/api/shipping-package",shippingPackageRoutes);
 app.use("/api/address",addressRoutes);
 app.use("/api/shipping",shippingRoutes);
-
+app.use("/api/orders",orderRoutes);
 
 
 app.use(errorHandler)
