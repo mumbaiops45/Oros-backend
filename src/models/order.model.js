@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const orderSchema = new mongoose.Schema(
     {
-    
+
 
         user: {
             type: mongoose.Schema.Types.ObjectId,
@@ -93,18 +93,27 @@ const orderSchema = new mongoose.Schema(
 
             estimatedDelivery: Date
         },
-
         payment: {
             method: {
                 type: String,
-                enum: ["ONLINE"],
-                default: "ONLINE"
+                enum: [
+                    "ONLINE",
+                    "CASH",
+                    "UPI",
+                    "CARD"
+                ],
+                default: null
             },
 
             provider: {
                 type: String,
-                enum: ["RAZORPAY"],
-                default: "RAZORPAY"
+                enum: [
+                    "RAZORPAY",
+                    "CASH",
+                    "UPI",
+                    "CARD"
+                ],
+                default: null
             },
 
             status: {

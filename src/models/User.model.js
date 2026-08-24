@@ -24,6 +24,16 @@ const UserSchema = new mongoose.Schema({
         enum: ["user", "staff","admin"],
         default: "user"
     },
+    accountType:{
+        type:String,
+        enum:["online","manual"],
+        default:"online"
+    },
+    createdBy:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"User",
+        default:null
+    },
     isBlocked: {
         type: Boolean,
         default: false,

@@ -13,6 +13,8 @@ import shippingPackageRoutes from "./routes/shippingPackage.route.js";
 import addressRoutes from "./routes/address.route.js";
 import shippingRoutes from "./routes/shipping.route.js";
 import orderRoutes from "./routes/order.route.js";
+import userRoutes from "./routes/user.route.js";
+import paymentRoutes from "./routes/payment.routes.js";
 
 const app = expres();
 
@@ -31,6 +33,8 @@ app.use("/api/shipping-package",shippingPackageRoutes);
 app.use("/api/address",addressRoutes);
 app.use("/api/shipping",shippingRoutes);
 app.use("/api/orders",orderRoutes);
+app.use("/api/user",userRoutes);
+app.use("/api/payment",paymentRoutes);
 
 
 app.use(errorHandler)

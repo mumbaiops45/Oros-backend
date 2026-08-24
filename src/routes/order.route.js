@@ -3,9 +3,10 @@ import express
 
 import {
     createOrderController,
-    getMyOrdersController
+    getMyOrdersController,
+     getAdminOrdersController
 } from "../controllers/order.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { protect ,authorize} from "../middlewares/auth.middleware.js";
 
 
 const router =
@@ -23,6 +24,13 @@ router.get(
     "/my-orders",
     protect,
     getMyOrdersController
+);
+
+router.get(
+    "/admin",
+    protect,
+    authorize("admin"),
+    getAdminOrdersController
 );
 
 

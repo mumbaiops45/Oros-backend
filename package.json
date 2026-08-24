@@ -23,6 +23,7 @@
     "mongoose": "^9.9.1",
     "multer": "^2.2.0",
     "multer-storage-cloudinary": "^4.0.0",
+    "razorpay": "^2.9.8",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

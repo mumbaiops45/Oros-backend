@@ -1,5 +1,6 @@
 import Cart
     from "../models/cart.model.js";
+import User from "../models/User.model.js";
 
 import Address
     from "../models/address.model.js";
@@ -413,5 +414,110 @@ export const createOrderService =
 
             }
 
+        };
+    };
+
+    export const getAdminOrdersService =
+    async (userId) => {
+
+        const filter = {};
+
+        if (userId) {
+
+            const user =
+                await User.findById(
+                    userId
+                ).lean();
+
+            if (!user) {
+                throw httpError(
+                    404,
+                    "User not found"
+                );
+            }
+
+            filter.user = userId;
+        }
+
+        const orders =
+            await Order.find(filter)
+                .populate(
+                    "user",
+                    "name phone email role accountType"
+                )
+                .sort({
+                    createdAt: -1
+                })
+                .lean();
+
+        if (!orders.length) {
+            return {
+                message: "No orders found",
+                data: []
+            };
+        }
+
+        const orderIds =
+            orders.map(
+                order => order._id
+            );
+
+        const orderItems =
+            await OrderItem.find({
+                order: {
+                    $in: orderIds
+                }
+            })
+            .populate(
+                "product",
+                "name sku images"
+            )
+            .lean();
+
+        const itemsMap =
+            new Map();
+
+        for (
+            const item
+            of orderItems
+        ) {
+
+            const orderId =
+                item.order.toString();
+
+            if (
+                !itemsMap.has(
+                    orderId
+                )
+            ) {
+                itemsMap.set(
+                    orderId,
+                    []
+                );
+            }
+
+            itemsMap
+                .get(orderId)
+                .push(item);
+        }
+
+        const result =
+            orders.map(
+                order => ({
+                    ...order,
+
+                    items:
+                        itemsMap.get(
+                            order._id.toString()
+                        ) || []
+                })
+            );
+
+        return {
+            message:
+                "Orders fetched successfully",
+
+            data:
+                result
         };
     };

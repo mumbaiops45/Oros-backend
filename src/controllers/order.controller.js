@@ -1,6 +1,7 @@
 import {
     createOrderService,
-    getMyOrdersService
+    getMyOrdersService,
+    getAdminOrdersService
 } from "../services/order.service.js";
 
 
@@ -31,6 +32,19 @@ export const getMyOrdersController =
         const result =
             await getMyOrdersService(
                 req.user.id
+            );
+
+        return res
+            .status(200)
+            .json(result);
+    };
+
+    export const getAdminOrdersController =
+    async (req, res) => {
+
+        const result =
+            await getAdminOrdersService(
+                req.query.userId
             );
 
         return res
