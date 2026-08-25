@@ -1,4 +1,4 @@
-import { createUserService, updateUserBYidService ,getUsersService} from "../services/user.service.js";
+import { createUserService, updateUserBYidService ,getUsersService,  deleteUserService} from "../services/user.service.js";
 
 export const createUser =async(req,res)=>{
     const {message,data}= await createUserService(req.body,req.user);
@@ -31,5 +31,19 @@ export const getUsers = async (req, res) => {
         message,
         success: true,
         data
+    });
+};
+
+export const deleteUserController = async (req, res) => {
+
+    const { id } = req.params;
+
+    const result =
+        await deleteUserService(id);
+
+    return res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result.data
     });
 };

@@ -345,6 +345,27 @@ export const updateUserBYidService =
     };
 };
 
+
+export const deleteUserService=async(id)=>{
+    if (!id) {
+        throw new Error("id required");
+        
+    }
+  const user = await User.findByIdAndDelete(id);
+
+if (!user) {
+    throw new Error("user not found");
+}
+    return{
+        message:"user deleted successfully",
+        data:{
+user
+        }
+    }
+
+
+
+}
 // export const updateUserBYidService = async (id,data,updatedByUser) => {
 //     const { name, phone, email,role } = data;
 //     if (role!== undefined) {

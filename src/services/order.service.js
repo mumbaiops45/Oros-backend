@@ -14,6 +14,8 @@ import OrderItem
 import httpError
     from "../utils/httpError.js";
 
+    import Product from "../models/product.model.js";
+
 import {
     calculateCartPricing
 } from "./pricing.service.js";
@@ -21,6 +23,7 @@ import {
 import {
     getSelectedShippingRate
 } from "./shipping.service.js";
+
 
 
 export const getMyOrdersService =
@@ -32,10 +35,10 @@ export const getMyOrdersService =
             await Order.find({
                 user: userId
             })
-            .sort({
-                createdAt: -1
-            })
-            .lean();
+                .sort({
+                    createdAt: -1
+                })
+                .lean();
 
 
         if (!orders.length) {
@@ -62,7 +65,7 @@ export const getMyOrdersService =
                     $in: orderIds
                 }
             })
-            .lean();
+                .lean();
 
 
         const itemsMap =
@@ -253,7 +256,7 @@ export const createOrderService =
         const order =
             await Order.create({
 
-              
+
                 user:
                     userId,
 
@@ -417,7 +420,7 @@ export const createOrderService =
         };
     };
 
-    export const getAdminOrdersService =
+export const getAdminOrdersService =
     async (userId) => {
 
         const filter = {};
@@ -468,11 +471,11 @@ export const createOrderService =
                     $in: orderIds
                 }
             })
-            .populate(
-                "product",
-                "name sku images"
-            )
-            .lean();
+                .populate(
+                    "product",
+                    "name sku images"
+                )
+                .lean();
 
         const itemsMap =
             new Map();
@@ -519,5 +522,438 @@ export const createOrderService =
 
             data:
                 result
+        };
+    };
+
+
+
+export const createManualOrderService =
+    async (
+        data,
+        createdByUser
+    ) => {
+
+        const {
+            userId,
+            items,
+            paymentMethod
+        } = data;
+
+
+        // ==========================================
+        // 1. Validate customer
+        // ==========================================
+
+        if (!userId) {
+
+            throw httpError(
+                400,
+                "Customer userId is required"
+            );
+        }
+
+
+        const customer =
+            await User.findById(
+                userId
+            ).lean();
+
+
+        if (!customer) {
+
+            throw httpError(
+                404,
+                "Customer not found"
+            );
+        }
+
+
+        // Manual order must belong
+        // to a normal customer
+
+        if (
+            customer.role !== "user"
+        ) {
+
+            throw httpError(
+                400,
+                "Manual order can only be created for a customer"
+            );
+        }
+
+
+        // ==========================================
+        // 2. Validate payment method
+        // ==========================================
+
+        const allowedPaymentMethods = [
+            "CASH",
+            "UPI",
+            "CARD"
+        ];
+
+
+        if (
+            !allowedPaymentMethods.includes(
+                paymentMethod
+            )
+        ) {
+
+            throw httpError(
+                400,
+                "Invalid payment method"
+            );
+        }
+
+
+        // ==========================================
+        // 3. Validate products
+        // ==========================================
+
+        if (
+            !Array.isArray(items) ||
+            items.length === 0
+        ) {
+
+            throw httpError(
+                400,
+                "At least one product is required"
+            );
+        }
+
+
+        // ==========================================
+        // 4. Get product IDs
+        // ==========================================
+
+        const productIds =
+            items.map(
+                item => item.product
+            );
+
+
+        const products =
+            await Product.find({
+                _id: {
+                    $in: productIds
+                }
+            }).lean();
+
+
+        if (
+            products.length !==
+            productIds.length
+        ) {
+
+            throw httpError(
+                400,
+                "One or more products were not found"
+            );
+        }
+
+
+        // ==========================================
+        // 5. Create pricing items
+        // ==========================================
+
+        const productMap =
+            new Map(
+                products.map(
+                    product => [
+                        product._id.toString(),
+                        product
+                    ]
+                )
+            );
+
+
+        const pricingItems = [];
+
+
+        for (
+            const item
+            of items
+        ) {
+
+            if (!item.product) {
+
+                throw httpError(
+                    400,
+                    "Product is required"
+                );
+            }
+
+
+            const quantity =
+                Number(item.qty);
+
+
+            if (
+                !Number.isInteger(
+                    quantity
+                ) ||
+                quantity < 1
+            ) {
+
+                throw httpError(
+                    400,
+                    "Quantity must be at least 1"
+                );
+            }
+
+
+            const product =
+                productMap.get(
+                    item.product.toString()
+                );
+
+
+            if (!product) {
+
+                throw httpError(
+                    404,
+                    "Product not found"
+                );
+            }
+
+
+            if (
+                product.status !==
+                "PUBLISHED"
+            ) {
+
+                throw httpError(
+                    400,
+                    `${product.name} is unavailable`
+                );
+            }
+
+
+            const selectedOptions =
+                item.selectedOptions || [];
+
+
+            if (
+                !Array.isArray(
+                    selectedOptions
+                )
+            ) {
+
+                throw httpError(
+                    400,
+                    "selectedOptions must be an array"
+                );
+            }
+
+
+            const personalisation =
+                item.personalisation || {};
+
+
+            if (
+                personalisation === null ||
+                typeof personalisation !==
+                    "object" ||
+                Array.isArray(
+                    personalisation
+                )
+            ) {
+
+                throw httpError(
+                    400,
+                    "personalisation must be an object"
+                );
+            }
+
+
+            pricingItems.push({
+
+                product,
+
+                qty:
+                    quantity,
+
+                selectedOptions,
+
+                personalisation,
+
+                taxRate:
+                    product.taxRate ?? 0
+            });
+        }
+
+
+        // ==========================================
+        // 6. Calculate product pricing
+        // ==========================================
+
+        const pricing =
+            await calculateCartPricing(
+                pricingItems
+            );
+
+
+        // ==========================================
+        // 7. Manual order has no shipping charge
+        // ==========================================
+
+        const shipping =
+            0;
+
+
+        const total =
+            pricing.subtotal +
+            pricing.tax +
+            shipping;
+
+
+        // ==========================================
+        // 8. Create order
+        // ==========================================
+
+        const order =
+            await Order.create({
+
+                // Customer
+                user:
+                    userId,
+
+                // Admin/Staff who created order
+                createdBy:
+                    createdByUser._id,
+
+                source:
+                    "MANUAL",
+
+                status:
+                    "COMPLETED",
+
+                pricing: {
+
+                    subtotal:
+                        pricing.subtotal,
+
+                    shipping:
+                        0,
+
+                    tax:
+                        pricing.tax,
+
+                    total
+                },
+
+                // No shipping address
+                shippingAddress: {},
+
+                // No shipping calculation
+                shipping: {
+
+                    pickupPincode:
+                        null,
+
+                    deliveryPincode:
+                        null,
+
+                    courierId:
+                        null,
+
+                    courierName:
+                        null,
+
+                    shippingCharge:
+                        0,
+
+                    estimatedDelivery:
+                        null
+                },
+
+                payment: {
+
+                    method:
+                        paymentMethod,
+
+                    provider:
+                        paymentMethod,
+
+                    status:
+                        "PAID",
+
+                    paymentOrderId:
+                        null,
+
+                    transactionId:
+                        null,
+
+                    paidAt:
+                        null
+                }
+            });
+
+
+        // ==========================================
+        // 9. Create order items
+        // ==========================================
+
+        const orderItems =
+            pricing.items.map(
+                item => ({
+
+                    order:
+                        order._id,
+
+                    product:
+                        item.product,
+
+                    nameSnapshot:
+                        item.nameSnapshot,
+
+                    skuSnapshot:
+                        item.skuSnapshot,
+
+                    qty:
+                        item.qty,
+
+                    unitPrice:
+                        item.unitPrice,
+
+                    selectedOptions:
+                        item.selectedOptions,
+
+                    personalisation:
+                        item.personalisation,
+
+                    taxRate:
+                        item.taxRate,
+
+                    taxAmount:
+                        item.taxAmount,
+
+                    lineTotal:
+                        item.lineTotal
+                })
+            );
+
+
+        await OrderItem.insertMany(
+            orderItems
+        );
+
+
+        // ==========================================
+        // 10. Return
+        // ==========================================
+
+        return {
+
+            message:
+                "Manual order created successfully",
+
+            data: {
+
+                order,
+
+                items:
+                    orderItems
+            }
         };
     };

@@ -1,7 +1,9 @@
 import {
     createOrderService,
     getMyOrdersService,
-    getAdminOrdersService
+    getAdminOrdersService,
+    createManualOrderService,
+    
 } from "../services/order.service.js";
 
 
@@ -39,7 +41,7 @@ export const getMyOrdersController =
             .json(result);
     };
 
-    export const getAdminOrdersController =
+export const getAdminOrdersController =
     async (req, res) => {
 
         const result =
@@ -51,3 +53,13 @@ export const getMyOrdersController =
             .status(200)
             .json(result);
     };
+
+
+export const createManualOrder = async (req, res) => {
+    const { message, data } = await createManualOrderService(req.body, req.user);
+    res.json({
+        message,
+        success: true,
+        data
+    })
+}

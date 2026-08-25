@@ -4,7 +4,8 @@ import express
 import {
     createOrderController,
     getMyOrdersController,
-     getAdminOrdersController
+     getAdminOrdersController,
+     createManualOrder
 } from "../controllers/order.controller.js";
 import { protect ,authorize} from "../middlewares/auth.middleware.js";
 
@@ -32,6 +33,8 @@ router.get(
     authorize("admin"),
     getAdminOrdersController
 );
+
+router.post("/manual",protect,authorize("staff","admin"),createManualOrder)
 
 
 export default router;

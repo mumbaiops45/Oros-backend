@@ -10,6 +10,12 @@ const orderSchema = new mongoose.Schema(
             required: true,
             index: true
         },
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+            index: true
+        },
 
         source: {
             type: String,
