@@ -13,7 +13,7 @@ const orderSchema = new mongoose.Schema(
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            default: null,
+            default: "CUSTOMER",
             index: true
         },
 
@@ -88,9 +88,15 @@ const orderSchema = new mongoose.Schema(
             pickupPincode: String,
             deliveryPincode: String,
 
-            courierId: Number,
+            courierId: {
+                type: Number,
+                default: null
+            },
 
-            courierName: String,
+            courierName: {
+                type: String,
+                default: null
+            },
 
             shippingCharge: {
                 type: Number,

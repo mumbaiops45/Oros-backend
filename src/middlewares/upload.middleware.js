@@ -30,6 +30,18 @@ export const categoryUpload = createUpload("oros/category");
 export const productUpload = createUpload("oros/product");
 export const subCategoryUpload = createUpload("oros/product");
 
+const quotationStorage = new CloudinaryStorage({
+    cloudinary: getCloudinary(),
+    params: {
+        folder: "oros/quotation",
+        resource_type: "auto"
+    }
+});
+
+export const quotationUpload = multer({
+    storage: quotationStorage
+});
+
 /* ------------------------------------------------------------------
    NEW: PRODUCT MEDIA (image + video) -> straight to cloudinary
    used by the normal single media API
