@@ -3,7 +3,8 @@ import express from "express";
 import {
     createQuotation,
     updateQuotation,
-    updateQuotationByAdmin
+    updateQuotationByAdmin,
+    getQuotation
 } from "../controllers/quotation.controller.js";
 
 import {
@@ -18,7 +19,7 @@ import {
 const router = express.Router();
 
 
-// Create quotation
+
 router.post(
     "/",
     protect,
@@ -28,7 +29,7 @@ router.post(
 );
 
 
-// Customer update
+
 router.put(
     "/:id",
     protect,
@@ -38,13 +39,14 @@ router.put(
 );
 
 
-// Admin update
 router.put(
     "/:id/admin",
     protect,
     authorize("admin"),
     updateQuotationByAdmin
 );
+
+router.get("/",protect,authorize("admin","user"),getQuotation)
 
 
 export default router;

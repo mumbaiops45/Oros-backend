@@ -3,6 +3,81 @@ import QuotationItem from "../models/quotationItem.model.js";
 import QuotationFile from "../models/quotationFile.model.js";
 import QuotationMessage from "../models/quotationMessage.model.js";
 import User from "../models/User.model.js";
+import mongoose from "mongoose";
+
+
+/*
+--------------------------------
+Line items
+
+A quotation carries one line per product the customer asked about.
+They arrive as `items` — JSON on the multipart create, a real array on
+the admin route — and the older single productId/qty pair is still
+accepted so nothing that already posts it has to change.
+--------------------------------
+*/
+
+const parseList = (raw) => {
+
+    if (!raw) {
+        return [];
+    }
+
+    let value = raw;
+
+    if (typeof value === "string") {
+
+        try {
+            value = JSON.parse(value);
+        } catch {
+            throw new Error("items must be valid JSON");
+        }
+    }
+
+    return Array.isArray(value) ? value : [];
+};
+
+
+/*
+The create route is multipart, so anything structured arrives as a
+string. An object posted as JSON is read back here; one that already
+came through as an object (the admin route is plain JSON) is passed
+along untouched.
+*/
+const parseObject = (raw) => {
+
+    if (!raw) {
+        return null;
+    }
+
+    if (typeof raw !== "string") {
+        return raw;
+    }
+
+    try {
+        return JSON.parse(raw);
+    } catch {
+        throw new Error("shippingAddress must be valid JSON");
+    }
+};
+
+
+const parseItems = (raw) => {
+
+    return parseList(raw).map((item) => {
+
+        const qty = Number(item.qty);
+
+        if (!Number.isInteger(qty) || qty < 1) {
+            throw new Error("Each item needs a quantity of at least 1");
+        }
+
+        return {
+            product: item.productId || item.product || null,
+            qty
+        };
+    });
+};
 
 
 export const createQuotationService = async (userId, data) => {
@@ -17,48 +92,88 @@ export const createQuotationService = async (userId, data) => {
         throw new Error("user not found");
     }
 
+    // Validate shipping address
+    const shippingAddress = parseObject(data.shippingAddress);
+
+    if (!shippingAddress) {
+        throw new Error("Shipping address is required");
+    }
+
+    const {
+        name,
+        phone,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        country,
+        pincode
+    } = shippingAddress;
+
+    if (
+        !name ||
+        !phone ||
+        !addressLine1 ||
+        !city ||
+        !state ||
+        !country ||
+        !pincode
+    ) {
+        throw new Error("Complete shipping address is required");
+    }
 
     // Generate quotation number
     const refNumber = `QTN-${Date.now()}`;
 
-
     // 1. Create quotation
     const quotation = await Quotation.create({
-
         refNumber,
-
         customer: userId,
 
         type: data.type,
 
         name: data.name,
-
         phone: data.phone,
-
         email: data.email,
-
         company: data.company,
-
         taxRegNo: data.taxRegNo,
 
         requirements: data.requirements,
+        deadline: data.deadline,
 
-        deadline: data.deadline
-
+        // Shipping address snapshot
+        shippingAddress: {
+            name,
+            phone,
+            addressLine1,
+            addressLine2,
+            city,
+            state,
+            country,
+            pincode
+        }
     });
 
+    // 2. Create quotation items
+    const lines = parseItems(data.items);
 
-    // 2. Create quotation item
-    const quotationItem = await QuotationItem.create({
+    const quotationItems = await QuotationItem.insertMany(
+        lines.length > 0
+            ? lines.map((line) => ({
+                quotation: quotation._id,
+                product: line.product,
+                qty: line.qty
+            }))
+            : [
+                {
+                    quotation: quotation._id,
+                    product: data.productId || null,
+                    qty: Number(data.qty)
+                }
+            ]
+    );
 
-        quotation: quotation._id,
-
-        product: data.productId,
-
-        qty: Number(data.qty)
-
-    });
-
+    const quotationItem = quotationItems[0];
 
     // 3. Create quotation files
     const quotationFiles = [];
@@ -67,24 +182,15 @@ export const createQuotationService = async (userId, data) => {
 
         const quotationFile =
             await QuotationFile.create({
-
                 quotation: quotation._id,
-
                 fileUrl: file.path,
-
                 fileName: file.originalname,
-
                 mime: file.mimetype,
-
                 size: file.size
-
             });
 
-        quotationFiles.push(
-            quotationFile
-        );
+        quotationFiles.push(quotationFile);
     }
-
 
     // 4. Create initial quotation message
     let quotationMessage = null;
@@ -93,36 +199,22 @@ export const createQuotationService = async (userId, data) => {
 
         quotationMessage =
             await QuotationMessage.create({
-
                 quotation: quotation._id,
-
                 sender: "CUSTOMER",
-
                 message: data.message
-
             });
-
     }
 
-
     return {
-
         message: "Quotation created successfully",
-
         data: {
-
             quotation,
-
             quotationItem,
-
+            quotationItems,
             quotationFiles,
-
             quotationMessage
-
         }
-
     };
-
 };
 
 export const updateQuotationService = async (
@@ -150,8 +242,32 @@ export const updateQuotationService = async (
     Update quotation
     --------------------------------
     */
+    if (data.status !== undefined) {
+        if (data.status !== "CANCELLED") {
+            throw new Error(
+                "Customer can only cancel the quotation"
+            );
+        }
+
+        const cancellableStatuses = [
+            "PENDING",
+            "IN_REVIEW",
+            "QUOTED"
+        ];
+
+            if (!cancellableStatuses.includes(quotation.status)) {
+            throw new Error(
+                "Quotation cannot be cancelled in its current status"
+            );
+        }
+        quotation.status = "CANCELLED";
+
+        await quotation.save();
+
+    }
 
     const quotationData = {};
+
 
     if (data.name !== undefined) {
         quotationData.name = data.name;
@@ -318,7 +434,6 @@ export const updateQuotationByAdminService = async (
         throw new Error("Quotation id required");
     }
 
-
     const quotation =
         await Quotation.findById(quotationId);
 
@@ -326,6 +441,31 @@ export const updateQuotationByAdminService = async (
         throw new Error("Quotation not found");
     }
 
+    /*
+    --------------------------------
+    Validate status
+    --------------------------------
+    */
+
+    const allowedStatuses = [
+        "PENDING",
+        "IN_REVIEW",
+        "QUOTED",
+        "ACCEPTED",
+        "REJECTED",
+        "EXPIRED",
+        "CONVERTED",
+        "CANCELLED"
+    ];
+
+    const status =
+        data.status !== undefined
+            ? data.status
+            : quotation.status;
+
+    if (!allowedStatuses.includes(status)) {
+        throw new Error("Invalid quotation status");
+    }
 
     /*
     --------------------------------
@@ -348,19 +488,20 @@ export const updateQuotationByAdminService = async (
             ? Number(data.shipping)
             : quotation.shipping;
 
-
-    if (subTotal < 0 || tax < 0 || shipping < 0) {
+    if (
+        subTotal < 0 ||
+        tax < 0 ||
+        shipping < 0
+    ) {
         throw new Error(
             "SubTotal, tax and shipping cannot be negative"
         );
     }
 
-
     const total =
         subTotal +
         tax +
         shipping;
-
 
     /*
     --------------------------------
@@ -369,25 +510,36 @@ export const updateQuotationByAdminService = async (
     */
 
     const quotationData = {
-
         subTotal,
-
         tax,
-
         shipping,
-
         total,
-
-        version: quotation.version + 1,
-
-        status: "QUOTED"
+        status
     };
 
+    /*
+    --------------------------------
+    Version
+    --------------------------------
 
-    if (data.validTill !== undefined) {
-        quotationData.validTill = data.validTill;
+    Increase version only when admin
+    actually sends a new quotation price.
+    */
+
+    if (
+        data.subTotal !== undefined ||
+        data.tax !== undefined ||
+        data.shipping !== undefined ||
+        data.items !== undefined
+    ) {
+        quotationData.version =
+            quotation.version + 1;
     }
 
+    if (data.validTill !== undefined) {
+        quotationData.validTill =
+            data.validTill;
+    }
 
     const updatedQuotation =
         await Quotation.findByIdAndUpdate(
@@ -399,22 +551,47 @@ export const updateQuotationByAdminService = async (
             }
         );
 
-
     /*
     --------------------------------
-    Update quotation item
+    Update quotation items
     --------------------------------
     */
 
-    let updatedItem = null;
+    const priced = parseList(data.items);
 
     if (
-        data.unitPrice !== undefined ||
-        data.itemTax !== undefined
+        priced.length === 0 &&
+        (
+            data.unitPrice !== undefined ||
+            data.itemTax !== undefined
+        )
     ) {
+
+        const first =
+            await QuotationItem.findOne({
+                quotation: quotationId
+            });
+
+        if (!first) {
+            throw new Error(
+                "Quotation item not found"
+            );
+        }
+
+        priced.push({
+            id: first._id,
+            unitPrice: data.unitPrice,
+            tax: data.itemTax
+        });
+    }
+
+    const updatedItems = [];
+
+    for (const line of priced) {
 
         const item =
             await QuotationItem.findOne({
+                _id: line.id || line._id,
                 quotation: quotationId
             });
 
@@ -424,24 +601,32 @@ export const updateQuotationByAdminService = async (
             );
         }
 
-
         const unitPrice =
-            data.unitPrice !== undefined
-                ? Number(data.unitPrice)
+            line.unitPrice !== undefined &&
+                line.unitPrice !== null
+                ? Number(line.unitPrice)
                 : item.unitPrice;
 
         const itemTax =
-            data.itemTax !== undefined
-                ? Number(data.itemTax)
+            line.tax !== undefined &&
+                line.tax !== null
+                ? Number(line.tax)
                 : item.tax;
 
+        if (
+            unitPrice < 0 ||
+            itemTax < 0
+        ) {
+            throw new Error(
+                "Unit price and tax cannot be negative"
+            );
+        }
 
         const amount =
             (unitPrice * item.qty) +
             itemTax;
 
-
-        updatedItem =
+        updatedItems.push(
             await QuotationItem.findByIdAndUpdate(
                 item._id,
                 {
@@ -453,9 +638,9 @@ export const updateQuotationByAdminService = async (
                     new: true,
                     runValidators: true
                 }
-            );
+            )
+        );
     }
-
 
     /*
     --------------------------------
@@ -475,15 +660,70 @@ export const updateQuotationByAdminService = async (
             });
     }
 
-
     return {
-
-        message: "Quotation sent successfully",
+        message:
+            "Quotation updated successfully",
 
         data: {
             quotation: updatedQuotation,
-            item: updatedItem,
+            items: updatedItems,
             message
         }
     };
 };
+
+export const getQuotationService = async (user, query) => {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 6;
+    const skip = (page - 1) * limit;
+    let filter = {};
+    if (user.role !== "admin") {
+ filter.customer = new mongoose.Types.ObjectId(user.id);
+    }
+    const quotation = await Quotation.aggregate([
+        {
+            $match: filter
+        },
+        {
+            $sort: {
+                createdAt: -1
+            }
+        },
+        {
+            $skip: skip
+        },
+        {
+            $limit: limit
+        },
+        {
+            $lookup: {
+                from: "quotationitems",
+                localField: "_id",
+                foreignField: "quotation",
+                as: "items"
+            }
+        },
+        {
+            $lookup: {
+                from: "quotationfiles",
+                localField: "_id",
+                foreignField: "quotation",
+                as: "files"
+            }
+        },
+        {
+            $lookup: {
+                from: "quotationmessages",
+                localField: "_id",
+                foreignField: "quotation",
+                as: "messages"
+            }
+        }
+    ])
+    return {
+        message: "quotation list",
+        data: {
+            quotation
+        }
+    }
+}

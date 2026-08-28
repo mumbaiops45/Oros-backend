@@ -7,9 +7,6 @@ const quotationFileSchema = new mongoose.Schema({
         required: true,
         index: true
     },
-
-
-
     fileUrl: {
         type: String,
         default: null

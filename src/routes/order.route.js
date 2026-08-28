@@ -5,7 +5,8 @@ import {
     createOrderController,
     getMyOrdersController,
      getAdminOrdersController,
-     createManualOrder
+     createManualOrder,
+     createQuotationOrderController 
 } from "../controllers/order.controller.js";
 import { protect ,authorize} from "../middlewares/auth.middleware.js";
 
@@ -35,6 +36,12 @@ router.get(
 );
 
 router.post("/manual",protect,authorize("staff","admin"),createManualOrder)
+
+router.post(
+    "/quotation/:quotationId",
+    protect,
+    createQuotationOrderController
+);
 
 
 export default router;

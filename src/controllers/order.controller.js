@@ -3,6 +3,7 @@ import {
     getMyOrdersService,
     getAdminOrdersService,
     createManualOrderService,
+        createQuotationOrderService
     
 } from "../services/order.service.js";
 
@@ -63,3 +64,22 @@ export const createManualOrder = async (req, res) => {
         data
     })
 }
+
+export const createQuotationOrderController =
+    async (req, res) => {
+
+        const {
+            quotationId
+        } = req.params;
+
+        const result =
+            await createQuotationOrderService(
+                req.user.id,
+                quotationId
+            );
+
+        res.status(201).json({
+            success: true,
+            ...result
+        });
+    };

@@ -24,7 +24,8 @@ import {
     getSelectedShippingRate
 } from "./shipping.service.js";
 
-
+import Quotation
+    from "../models/quotation.model.js";
 
 export const getMyOrdersService =
     async (
@@ -957,3 +958,251 @@ export const createManualOrderService =
             }
         };
     };
+
+    export const createQuotationOrderService = async (
+    userId,
+    quotationId
+) => {
+
+    // ==========================================
+    // 1. Validate quotation id
+    // ==========================================
+
+    if (!quotationId) {
+        throw httpError(
+            400,
+            "Quotation id is required"
+        );
+    }
+
+    // ==========================================
+    // 2. Find customer's quotation
+    // ==========================================
+
+    const quotation =
+        await Quotation.findOne({
+            _id: quotationId,
+            customer: userId
+        }).lean();
+
+    if (!quotation) {
+        throw httpError(
+            404,
+            "Quotation not found"
+        );
+    }
+
+    // ==========================================
+    // 3. Only ACCEPTED quotation can become order
+    // ==========================================
+
+    if (quotation.status !== "ACCEPTED") {
+        throw httpError(
+            400,
+            "Only an accepted quotation can be converted to an order"
+        );
+    }
+
+    // ==========================================
+    // 4. Prevent duplicate order
+    // ==========================================
+
+    if (quotation.convertedOrderId) {
+        throw httpError(
+            400,
+            "Quotation has already been converted to an order"
+        );
+    }
+
+    // ==========================================
+    // 5. Check quotation validity
+    // ==========================================
+
+    if (
+        quotation.validTill &&
+        new Date(quotation.validTill) < new Date()
+    ) {
+        throw httpError(
+            400,
+            "Quotation has expired"
+        );
+    }
+
+    // ==========================================
+    // 6. Validate shipping address
+    // ==========================================
+
+    const address =
+        quotation.shippingAddress || {};
+
+    if (
+        !address.name ||
+        !address.phone ||
+        !address.addressLine1 ||
+        !address.city ||
+        !address.state ||
+        !address.country ||
+        !address.pincode
+    ) {
+        throw httpError(
+            400,
+            "Complete shipping address is required"
+        );
+    }
+
+    // ==========================================
+    // 7. Get quotation pricing
+    // ==========================================
+
+    const subtotal =
+        Number(quotation.subTotal) || 0;
+
+    const tax =
+        Number(quotation.tax) || 0;
+
+    const shipping =
+        Number(quotation.shipping) || 0;
+
+    const total =
+        Number(quotation.total) || 0;
+
+    if (
+        subtotal < 0 ||
+        tax < 0 ||
+        shipping < 0 ||
+        total < 0
+    ) {
+        throw httpError(
+            400,
+            "Invalid quotation pricing"
+        );
+    }
+
+    // ==========================================
+    // 8. Create Order
+    // ==========================================
+
+    const order =
+        await Order.create({
+
+            // Customer
+            user: userId,
+
+            // Not manually created by admin
+            createdBy: null,
+
+            // Order came from quotation
+            source: "QUOTATION",
+
+            // Link quotation
+            quotation: quotation._id,
+
+            // Payment pending
+            status: "PENDING_PAYMENT",
+
+            // Quotation pricing
+            pricing: {
+                subtotal,
+                shipping,
+                tax,
+                total
+            },
+
+            // ==================================
+            // Shipping address snapshot
+            // ==================================
+
+            shippingAddress: {
+                name:
+                    address.name,
+
+                phone:
+                    address.phone,
+
+                addressLine1:
+                    address.addressLine1,
+
+                addressLine2:
+                    address.addressLine2 || "",
+
+                city:
+                    address.city,
+
+                state:
+                    address.state,
+
+                country:
+                    address.country,
+
+                pincode:
+                    address.pincode
+            },
+
+            // ==================================
+            // Shipping
+            // ==================================
+
+            shipping: {
+                pickupPincode: null,
+
+                deliveryPincode:
+                    address.pincode,
+
+                courierId: null,
+
+                courierName: null,
+
+                shippingCharge:
+                    shipping,
+
+                estimatedDelivery: null
+            },
+
+            // ==================================
+            // Payment
+            // ==================================
+
+            payment: {
+                method: "ONLINE",
+
+                provider: "RAZORPAY",
+
+                status: "PENDING",
+
+                paymentOrderId: null,
+
+                transactionId: null,
+
+                paidAt: null
+            }
+        });
+
+    // ==========================================
+    // 9. Mark quotation as converted
+    // ==========================================
+
+    await Quotation.findByIdAndUpdate(
+        quotationId,
+        {
+            status: "CONVERTED",
+            convertedOrderId: order._id
+        },
+        {
+            new: true,
+            runValidators: true
+        }
+    );
+
+    // ==========================================
+    // 10. Return
+    // ==========================================
+
+    return {
+        message:
+            "Quotation converted to order successfully",
+
+        data: {
+            order
+        }
+    };
+};

@@ -1,4 +1,4 @@
-import { createQuotationService,updateQuotationService,updateQuotationByAdminService } from "../services/quotation.service.js";
+import { createQuotationService,updateQuotationService,updateQuotationByAdminService,getQuotationService } from "../services/quotation.service.js";
 
 export const createQuotation=async(req,res)=>{
     const formData ={...req.body,files:req.files||[]};
@@ -56,4 +56,15 @@ export const updateQuotationByAdmin = async (req, res) => {
         data: result
     });
 };
+
+export const getQuotation=async(req,res)=>{
+    const {message,data} = await getQuotationService(req.user,req.query);
+    res.json({
+        message,
+        success:true,
+        data
+
+    })
+
+}
 

@@ -20,4 +20,4 @@ const quotationMassageSchema = new mongoose.Schema({
         timestamps: true
     })
 
-    export default mongoose.models.QuotationMessage || mongoose.model("QuotationMesaage",quotationMassageSchema)
+    export default mongoose.models.QuotationMessage || mongoose.model("QuotationMessage",quotationMassageSchema)
