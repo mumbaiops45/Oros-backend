@@ -10,13 +10,11 @@ const cartSchema = new mongoose.Schema(
             required: true,
             index: true
         },
-
         product: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Product",
             required: true
         },
-
         qty: {
             type: Number,
             required: true,
@@ -32,7 +30,6 @@ const cartSchema = new mongoose.Schema(
                         required: true,
                         trim: true
                     },
-
                     value: {
                         type: String,
                         required: true,

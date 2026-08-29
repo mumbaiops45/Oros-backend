@@ -3,6 +3,7 @@
 import Cart from "../models/cart.model.js";
 import Product from "../models/product.model.js";
 import httpError from "../utils/httpError.js";
+import ProductOption from "../models/productOption.model.js";
 
 const createVariantKey = (
     selectedOptions = [],
@@ -107,6 +108,17 @@ export const addToCartService = async (
         throw httpError(
             400,
             "Product is not available"
+        );
+    }
+
+    const productOptions = await ProductOption.find({
+        product: product
+    }).lean();
+
+    if (productOptions.length > 0) {
+        throw httpError(
+            400,
+            "Please choose a variant before adding the product to cart"
         );
     }
 

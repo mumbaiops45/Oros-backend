@@ -20,7 +20,7 @@ const createUpload = (folder) => {
         cloudinary: getCloudinary(),
         params: {
             folder,
-            allowed_formats: ["jpg", "jpeg", "png", "webp"],
+            allowed_formats: ["jpg", "jpeg", "png", "webp", "mp4","mov","webm"],
         }
     })
     return multer({ storage })
@@ -29,6 +29,7 @@ const createUpload = (folder) => {
 export const categoryUpload = createUpload("oros/category");
 export const productUpload = createUpload("oros/product");
 export const subCategoryUpload = createUpload("oros/product");
+export const bannerUpload =createUpload("oros/banner");
 
 const quotationStorage = new CloudinaryStorage({
     cloudinary: getCloudinary(),

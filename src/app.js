@@ -16,13 +16,13 @@ import orderRoutes from "./routes/order.route.js";
 import userRoutes from "./routes/user.route.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import quotationRoutes from "./routes/quotation.route.js";
+import bannerRoutes from "./routes/banner.route.js";
 
 const app = expres();
 
 connectDB()
 app.use(expres.json());
-// the admin panel sends withCredentials, and a wildcard origin is rejected
-// by the browser on a credentialed request — reflect the caller instead
+
 app.use(cors({ origin: true, credentials: true }));
 
 app.use("/api/auth",AuthRoutes)
@@ -37,6 +37,8 @@ app.use("/api/orders",orderRoutes);
 app.use("/api/user",userRoutes);
 app.use("/api/payment",paymentRoutes);
 app.use("/api/quotation",quotationRoutes);
+app.use("/api/Banner",bannerRoutes);
+
 
 app.use(errorHandler)
 
