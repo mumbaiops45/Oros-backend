@@ -10,37 +10,45 @@ const UserSchema = new mongoose.Schema({
     },
     name: {
         type: String,
-        required:true,
+        required: true,
         trim: true
     },
     email: {
         type: String,
         lowercase: true,
-        required:true,
+        required: true,
         trim: true
+    },
+    profileImage: {
+        type: String,
+        default: ""
+    },
+    profileImagePublicId: {
+        type: String,
+        default: ""
     },
     role: {
         type: String,
-        enum: ["user", "staff","admin"],
+        enum: ["user", "staff", "admin"],
         default: "user"
     },
-    accountType:{
-        type:String,
-        enum:["online","manual"],
-        default:"online"
+    accountType: {
+        type: String,
+        enum: ["online", "manual"],
+        default: "online"
     },
-    createdBy:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        default:null
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null
     },
     isBlocked: {
         type: Boolean,
         default: false,
     },
-   lastLoginAt:{
-        type:Date,
-        default:null
+    lastLoginAt: {
+        type: Date,
+        default: null
     }
 },
     {

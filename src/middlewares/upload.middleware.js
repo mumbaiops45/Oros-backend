@@ -30,6 +30,7 @@ export const categoryUpload = createUpload("oros/category");
 export const productUpload = createUpload("oros/product");
 export const subCategoryUpload = createUpload("oros/product");
 export const bannerUpload =createUpload("oros/banner");
+export const profileUpload = createUpload("oros/profile");
 
 const quotationStorage = new CloudinaryStorage({
     cloudinary: getCloudinary(),

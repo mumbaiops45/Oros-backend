@@ -115,12 +115,6 @@ export const addToCartService = async (
         product: product
     }).lean();
 
-    if (productOptions.length > 0) {
-        throw httpError(
-            400,
-            "Please choose a variant before adding the product to cart"
-        );
-    }
 
 
     const quantity = Number(qty);

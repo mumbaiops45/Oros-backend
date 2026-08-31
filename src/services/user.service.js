@@ -1,4 +1,6 @@
 import User from "../models/User.model.js";
+import cloudinary from "../config/cloudinary.js";
+
 
 export const createUserService = async (
     data,
@@ -366,36 +368,59 @@ user
 
 
 }
-// export const updateUserBYidService = async (id,data,updatedByUser) => {
-//     const { name, phone, email,role } = data;
-//     if (role!== undefined) {
-//         if (updatedByUser.role==="staff") {
-//             throw new Error("staff can not change the role");
-//         }
-//         if (updatedByUser.role==="admin" && !["user","staff"].includes(role)) {
-//             throw new Error("invalid roll");
-//         }
-//     };
-    
-//     const exist = await User.findById(id).populate("createdBy","phone role");
-//       if (!exist) {
-//         throw new Error("user not found");
-//     }
-//     if ( updatedByUser.role === "staff" &&    exist.createdBy &&exist.createdBy.role==="staff" && exist.createdBy._id.toString() !== updatedByUser._id.toString()) {
-//         throw new Error(`you can not update an user who created by other staff "${exist.createdBy.phone}"`);
-//     }
-//      if (exist.createdBy.role === "staff" && exist.accountType!=="manual") {
-//         throw new Error(`staff can only update the manually created costomers`);
-//     }
 
 
-//     const user = await User.findByIdAndUpdate(id,data);
-  
-// return {
-//     message:"updated succefull",
-//     data:{
-//         user
-//     }
-// }
+// user profile
 
-// }
+export const getProfileService = async (userId) => {
+
+    const user = await User.findById(userId).lean();
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    return {
+        message: "Profile fetched successfully",
+        data: {
+            user
+        }
+    };
+};
+
+
+export const updateProfileService = async (userId, data) => {
+
+    const oldUser = await User.findById(userId).lean();
+
+    if (!oldUser) {
+        throw new Error("User not found");
+    }
+
+    const oldImagePublicId = oldUser.profileImagePublicId;
+
+    const user = await User.findByIdAndUpdate(
+        userId,
+        data,
+        {
+            new: true,
+            runValidators: true
+        }
+    ).lean();
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    // Delete old Cloudinary image if a new image was uploaded
+    if (data.profileImage && oldImagePublicId) {
+        await cloudinary.uploader.destroy(oldImagePublicId);
+    }
+
+    return {
+        message: "Profile updated successfully",
+        data: {
+            user
+        }
+    };
+};
