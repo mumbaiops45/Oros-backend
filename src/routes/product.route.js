@@ -5,7 +5,9 @@ import {
     getProductById,
     createProduct,
     updateProduct,
-    deleteProduct
+    deleteProduct,
+    getSuggestedProducts,
+    getBestSellerProducts
 } from "../controllers/product.controller.js";
 
 import {
@@ -263,6 +265,10 @@ router.delete(
 
 router.get("/", getProducts);
 
+router.get("/:id/suggestions", getSuggestedProducts);
+
+router.get("/best-sellers", getBestSellerProducts);
+
 router.get("/:id", getProductById);
 
 router.post("/", protect, authorize("admin"), createProduct);
@@ -270,5 +276,7 @@ router.post("/", protect, authorize("admin"), createProduct);
 router.put("/:id", protect, authorize("admin"), updateProduct);
 
 router.delete("/:id", protect, authorize("admin"), deleteProduct);
+
+
 
 export default router;

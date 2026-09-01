@@ -14,7 +14,7 @@ import OrderItem
 import httpError
     from "../utils/httpError.js";
 
-    import Product from "../models/product.model.js";
+import Product from "../models/product.model.js";
 
 import {
     calculateCartPricing
@@ -754,7 +754,7 @@ export const createManualOrderService =
             if (
                 personalisation === null ||
                 typeof personalisation !==
-                    "object" ||
+                "object" ||
                 Array.isArray(
                     personalisation
                 )
@@ -959,7 +959,7 @@ export const createManualOrderService =
         };
     };
 
-    export const createQuotationOrderService = async (
+export const createQuotationOrderService = async (
     userId,
     quotationId
 ) => {
@@ -1092,7 +1092,7 @@ export const createManualOrderService =
             createdBy: null,
 
             // Order came from quotation
-            source: "QUOTATION",
+            source: "BULK",
 
             // Link quotation
             quotation: quotation._id,

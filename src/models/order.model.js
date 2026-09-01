@@ -21,7 +21,7 @@ const orderSchema = new mongoose.Schema(
             type: String,
             enum: [
                 "STORE",
-                "QUOTATION",
+                "BULK",
                 "MANUAL"
             ],
             default: "STORE"

@@ -3,7 +3,7 @@ import {
     createProductService,
     getProductByIdService,
     updateProductService,
-    deleteProductService
+    deleteProductService,getSuggestedProductsService,  getBestSellerProductsService,
 } from "../services/product.service.js";
 
 export const getProducts = async (req, res) => {
@@ -68,6 +68,38 @@ export const deleteProduct = async (req, res) => {
         message,
         data
     } = await deleteProductService(req.params.id);
+
+    res.status(200).json({
+        success: true,
+        message,
+        data
+    });
+};
+
+
+export const getSuggestedProducts = async (req, res) => {
+
+    const {
+        message,
+        data
+    } = await getSuggestedProductsService(
+        req.params.id,
+        req.query
+    );
+
+    res.status(200).json({
+        success: true,
+        message,
+        data
+    });
+};
+
+export const getBestSellerProducts = async (req, res) => {
+
+    const {
+        message,
+        data
+    } = await getBestSellerProductsService(req.query);
 
     res.status(200).json({
         success: true,

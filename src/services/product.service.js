@@ -8,6 +8,48 @@ import ProductOptionValue from "../models/productOptionValue.model.js";
 import PriceSlab from "../models/priceSlab.model.js";
 import { httpError } from "../utils/httpError.js";
 import { destroyFromCloudinary } from "../utils/cloudinaryUpload.js";
+import mongoose from "mongoose";
+import Order from "../models/order.model.js";
+
+import OrderItem from "../models/orderItem.model.js";
+
+/*
+ * The storefront cards need a thumbnail and media lives in its own
+ * collection. One extra query for the whole list beats an N+1 per card.
+ */
+
+const attachPrimaryMedia = async (products) => {
+
+    if (!products.length) {
+        return products;
+    }
+
+    const media = await ProductMedia.find({
+        product: {
+            $in: products.map(
+                (item) => item._id
+            )
+        }
+    })
+        .sort({ isPrimary: -1, sortOrder: 1 })
+        .lean();
+
+    const primaryByProduct = new Map();
+
+    for (const item of media) {
+        const key = String(item.product);
+
+        if (!primaryByProduct.has(key)) {
+            primaryByProduct.set(key, item);
+        }
+    }
+
+    return products.map((product) => ({
+        ...product,
+        primaryMedia:
+            primaryByProduct.get(String(product._id)) || null
+    }));
+};
 
 export const getProductsService = async (query) => {
 
@@ -67,30 +109,7 @@ export const getProductsService = async (query) => {
 
     const total = await Product.countDocuments(filter);
 
-    // The storefront grid needs a thumbnail and media lives in its own
-    // collection. One extra query for the whole page beats an N+1 per card.
-    const media = products.length
-        ? await ProductMedia.find({
-            product: { $in: products.map((item) => item._id) }
-        })
-            .sort({ isPrimary: -1, sortOrder: 1 })
-            .lean()
-        : [];
-
-    const primaryByProduct = new Map();
-
-    for (const item of media) {
-        const key = String(item.product);
-
-        if (!primaryByProduct.has(key)) {
-            primaryByProduct.set(key, item);
-        }
-    }
-
-    const productsWithMedia = products.map((product) => ({
-        ...product,
-        primaryMedia: primaryByProduct.get(String(product._id)) || null
-    }));
+    const productsWithMedia = await attachPrimaryMedia(products);
 
     return {
         message: "Products fetched successfully",
@@ -406,6 +425,243 @@ export const deleteProductService = async (id) => {
         message: "Product deleted successfully",
         data: {
             product
+        }
+    };
+};
+
+
+export const getSuggestedProductsService = async (id, query) => {
+
+    const {
+        limit = 8
+    } = query;
+
+    const limitNumber = Math.min(
+        Math.max(Number(limit), 1),
+        20
+    );
+
+    const product = await Product.findById(id)
+        .select("_id category subcategory")
+        .lean();
+
+    if (!product) {
+        throw httpError(404, "Product not found");
+    }
+
+    /*
+     * First priority
+     * Same category + same subcategory
+     */
+
+    const sameSubcategory = await Product.find({
+        _id: { $ne: product._id },
+        category: product.category,
+        subcategory: product.subcategory,
+        status: "PUBLISHED"
+    })
+        .populate("category", "name slug")
+        .populate("subcategory", "name slug")
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .limit(limitNumber)
+        .lean();
+
+    /*
+     * If enough products are available
+     */
+
+    if (sameSubcategory.length >= limitNumber) {
+
+        return {
+            message: "Suggested products fetched successfully",
+            data: {
+                products: await attachPrimaryMedia(
+                    sameSubcategory
+                )
+            }
+        };
+
+    }
+
+    /*
+     * If same subcategory does not have enough products,
+     * get remaining products from the same category.
+     */
+
+    const existingIds = [
+        product._id,
+        ...sameSubcategory.map(
+            (item) => item._id
+        )
+    ];
+
+    const remainingLimit =
+        limitNumber - sameSubcategory.length;
+
+    const sameCategory = await Product.find({
+        _id: {
+            $nin: existingIds
+        },
+        category: product.category,
+        status: "PUBLISHED"
+    })
+        .populate("category", "name slug")
+        .populate("subcategory", "name slug")
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .limit(remainingLimit)
+        .lean();
+
+    const products = [
+        ...sameSubcategory,
+        ...sameCategory
+    ];
+
+    return {
+        message: "Suggested products fetched successfully",
+        data: {
+            products: await attachPrimaryMedia(products)
+        }
+    };
+};
+
+export const getBestSellerProductsService = async (query) => {
+
+    const {
+        limit = 6
+    } = query;
+
+    const limitNumber = Math.min(
+        Math.max(Number(limit) || 6, 1),
+        20
+    );
+
+    const bestSellers = await OrderItem.aggregate([
+
+        /*
+         * Only use paid orders
+         */
+        {
+            $lookup: {
+                from: "orders",
+                localField: "order",
+                foreignField: "_id",
+                as: "order"
+            }
+        },
+
+        {
+            $unwind: "$order"
+        },
+
+        /*
+         * Only PAID orders
+         */
+        {
+            $match: {
+                "order.status": "PAID"
+            }
+        },
+
+        /*
+         * Group by product
+         */
+        {
+            $group: {
+                _id: "$product",
+                totalSold: {
+                    $sum: "$qty"
+                }
+            }
+        },
+
+        /*
+         * Highest quantity sold first
+         */
+        {
+            $sort: {
+                totalSold: -1
+            }
+        },
+
+        /*
+         * Get only required products
+         */
+        {
+            $limit: limitNumber
+        },
+
+        /*
+         * Get product information
+         */
+        {
+            $lookup: {
+                from: "products",
+                localField: "_id",
+                foreignField: "_id",
+                as: "product"
+            }
+        },
+
+        {
+            $unwind: "$product"
+        },
+
+        /*
+         * Only published products
+         */
+        {
+            $match: {
+                "product.status": "PUBLISHED"
+            }
+        },
+
+        /*
+         * Return product + sold quantity
+         */
+        {
+            $project: {
+                _id: "$product._id",
+                name: "$product.name",
+                slug: "$product.slug",
+                sku: "$product.sku",
+                category: "$product.category",
+                subcategory: "$product.subcategory",
+                shortDescription: "$product.shortDescription",
+                basePrice: "$product.basePrice",
+                taxRate: "$product.taxRate",
+                leadTimeDays: "$product.leadTimeDays",
+                isCustomisable: "$product.isCustomisable",
+                customisationType: "$product.customisationType",
+                minQty: "$product.minQty",
+                status: "$product.status",
+                sortOrder: "$product.sortOrder",
+                totalSold: 1
+            }
+        }
+
+    ]);
+
+    /*
+     * The pipeline carries category and subcategory as ids. The storefront
+     * cards print their names, so they are resolved here — and the
+     * thumbnail is attached the same way every other list gets one.
+     */
+
+    const withCategories = await Product.populate(bestSellers, [
+        {
+            path: "category",
+            select: "name slug"
+        },
+        {
+            path: "subcategory",
+            select: "name slug"
+        }
+    ]);
+
+    return {
+        message: "Best seller products fetched successfully",
+        data: {
+            products: await attachPrimaryMedia(withCategories)
         }
     };
 };
