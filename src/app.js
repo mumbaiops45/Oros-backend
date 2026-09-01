@@ -17,6 +17,7 @@ import userRoutes from "./routes/user.route.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import quotationRoutes from "./routes/quotation.route.js";
 import bannerRoutes from "./routes/banner.route.js";
+import analyticsRoutes from "./routes/analytics.route.js";
 
 const app = expres();
 
@@ -38,6 +39,7 @@ app.use("/api/user",userRoutes);
 app.use("/api/payment",paymentRoutes);
 app.use("/api/quotation",quotationRoutes);
 app.use("/api/Banner",bannerRoutes);
+app.use("/api/analytics",analyticsRoutes);
 
 
 app.use(errorHandler)

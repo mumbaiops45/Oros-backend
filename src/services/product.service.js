@@ -18,6 +18,7 @@ export const getProductsService = async (query) => {
         category,
         subcategory,
         status
+        
     } = query;
 
     const filter = {};
