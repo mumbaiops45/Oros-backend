@@ -27,6 +27,8 @@ import {
 import Quotation
     from "../models/quotation.model.js";
 
+    import { clearCartService } from "./cart.service.js";
+
 export const getMyOrdersService =
     async (
         userId
@@ -398,6 +400,8 @@ export const createOrderService =
         await OrderItem.insertMany(
             orderItems
         );
+
+        await clearCartService(userId);
 
 
         /*
