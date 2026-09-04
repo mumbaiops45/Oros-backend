@@ -3,7 +3,9 @@ import {
     getMyOrdersService,
     getAdminOrdersService,
     createManualOrderService,
-        createQuotationOrderService
+        createQuotationOrderService,
+        cancelStoreOrderService,
+        updateStoreOrderStatusService
     
 } from "../services/order.service.js";
 
@@ -82,4 +84,55 @@ export const createQuotationOrderController =
             success: true,
             ...result
         });
+    };
+
+    export const cancelStoreOrderController =
+    async (req, res) => {
+
+        const {
+            id
+        } = req.params;
+
+        const result =
+            await cancelStoreOrderService(
+                id,
+                req.user.id
+            );
+
+        return res
+            .status(200)
+            .json({
+                success: true,
+                ...result
+            });
+    };
+
+
+// ==========================================
+// ADMIN UPDATE STORE ORDER STATUS
+// ==========================================
+
+export const updateStoreOrderStatusController =
+    async (req, res) => {
+
+        const {
+            id
+        } = req.params;
+
+        const {
+            status
+        } = req.body;
+
+        const result =
+            await updateStoreOrderStatusService(
+                id,
+                status
+            );
+
+        return res
+            .status(200)
+            .json({
+                success: true,
+                ...result
+            });
     };

@@ -59,8 +59,10 @@ export const getProductsService = async (query) => {
         search,
         category,
         subcategory,
-        status
-        
+        status,
+        sort,
+        minPrice,
+        maxPrice
     } = query;
 
     const filter = {};
@@ -94,15 +96,38 @@ export const getProductsService = async (query) => {
         filter.status = status;
     }
 
+    // Price range filter
+    if (minPrice !== undefined || maxPrice !== undefined) {
+        filter.basePrice = {};
+
+        if (minPrice !== undefined) {
+            filter.basePrice.$gte = Number(minPrice);
+        }
+
+        if (maxPrice !== undefined) {
+            filter.basePrice.$lte = Number(maxPrice);
+        }
+    }
+
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
 
     const skip = (pageNumber - 1) * limitNumber;
 
+    let sortOption = { sortOrder: 1 };
+
+    if (sort === "price_asc") {
+        sortOption = { basePrice: 1 };
+    }
+
+    if (sort === "price_desc") {
+        sortOption = { basePrice: -1 };
+    }
+
     const products = await Product.find(filter)
         .populate("category", "name slug")
         .populate("subcategory", "name slug")
-        .sort({ sortOrder: 1 })
+        .sort(sortOption)
         .skip(skip)
         .limit(limitNumber)
         .lean();

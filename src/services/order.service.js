@@ -16,6 +16,8 @@ import httpError
 
 import Product from "../models/product.model.js";
 
+import Coupon from "../models/coupon.model.js";
+
 import {
     calculateCartPricing
 } from "./pricing.service.js";
@@ -130,300 +132,390 @@ export const getMyOrdersService =
     };
 
 
-export const createOrderService =
-    async (
-        userId,
-        {
-            shippingQuoteId,
-            shippingCourierId
-        }
-    ) => {
+export const createOrderService = async (
+    userId,
+    {
+        shippingQuoteId,
+        shippingCourierId,
+        couponCode
+    }
+) => {
 
-        /*
-         * 1. Get cart
-         */
+    // ==========================================
+    // 1. Get cart
+    // ==========================================
 
-        const cartItems =
-            await Cart.find({
-                user: userId
-            })
-                .populate(
-                    "product",
-                    "name sku basePrice taxRate status"
-                )
-                .lean();
+    const cartItems =
+        await Cart.find({
+            user: userId
+        })
+            .populate(
+                "product",
+                "name sku basePrice taxRate status"
+            )
+            .lean();
+
+    if (!cartItems.length) {
+        throw httpError(
+            400,
+            "Cart is empty"
+        );
+    }
 
 
-        if (!cartItems.length) {
+    // ==========================================
+    // 2. Validate populated products
+    // ==========================================
 
+    for (
+        const item
+        of cartItems
+    ) {
+
+        if (!item.product) {
             throw httpError(
                 400,
-                "Cart is empty"
+                "Product not found"
             );
         }
 
-
-        /*
-         * 2. Validate populated products
-         *
-         * Because populate() is used,
-         * item.product is now the Product
-         * document, not only ObjectId.
-         */
-
-        for (
-            const item
-            of cartItems
+        if (
+            item.product.status !==
+            "PUBLISHED"
         ) {
-
-            if (!item.product) {
-
-                throw httpError(
-                    400,
-                    "Product not found"
-                );
-            }
-
-
-            if (
-                item.product.status !==
-                "PUBLISHED"
-            ) {
-
-                throw httpError(
-                    400,
-                    `${item.product.name} is unavailable`
-                );
-            }
-        }
-
-
-        /*
-         * 3. Calculate pricing
-         */
-
-        const pricing =
-            await calculateCartPricing(
-                cartItems
-            );
-
-
-        /*
-         * 4. Get address
-         */
-
-        const address =
-            await Address.findOne({
-                user: userId
-            }).lean();
-
-
-        if (!address) {
-
             throw httpError(
                 400,
-                "Shipping address is required"
+                `${item.product.name} is unavailable`
             );
         }
+    }
 
 
-        /*
-         * 5. Get selected shipping
-         *
-         * This reads the saved quote.
-         * It does NOT call Shiprocket again.
-         */
+    // ==========================================
+    // 3. Calculate pricing
+    // ==========================================
 
-        const shipping =
-            await getSelectedShippingRate(
-                userId,
-                shippingQuoteId,
-                shippingCourierId
-            );
-
-
-        /*
-         * 6. Calculate final total
-         */
-
-        const total =
-            pricing.subtotal +
-            shipping.shippingCharge +
-            pricing.tax;
-
-
-        /*
-         * 7. Create Order
-         */
-
-        const order =
-            await Order.create({
-
-
-                user:
-                    userId,
-
-                source:
-                    "STORE",
-
-                status:
-                    "PENDING_PAYMENT",
-
-                pricing: {
-
-                    subtotal:
-                        pricing.subtotal,
-
-                    shipping:
-                        shipping.shippingCharge,
-
-                    tax:
-                        pricing.tax,
-
-                    total
-
-                },
-
-                shippingAddress: {
-
-                    name:
-                        address.name,
-
-                    phone:
-                        address.phone,
-
-                    addressLine1:
-                        address.addressLine1,
-
-                    addressLine2:
-                        address.addressLine2,
-
-                    city:
-                        address.city,
-
-                    state:
-                        address.state,
-
-                    country:
-                        address.country,
-
-                    pincode:
-                        address.pincode
-
-                },
-
-                shipping: {
-
-                    pickupPincode:
-                        shipping.pickupPincode,
-
-                    deliveryPincode:
-                        shipping.deliveryPincode,
-
-                    courierId:
-                        shipping.courierId,
-
-                    courierName:
-                        shipping.courierName,
-
-                    shippingCharge:
-                        shipping.shippingCharge,
-                    estimatedDelivery:
-                        shipping.estimatedDelivery
-                },
-
-                payment: {
-
-                    method:
-                        "ONLINE",
-
-                    provider:
-                        "RAZORPAY",
-
-                    status:
-                        "PENDING"
-
-                }
-
-            });
-
-
-        /*
-         * 8. Create OrderItems
-         */
-
-        const orderItems =
-            pricing.items.map(
-                item => ({
-
-                    order:
-                        order._id,
-
-                    product:
-                        item.product,
-
-                    nameSnapshot:
-                        item.nameSnapshot,
-
-                    skuSnapshot:
-                        item.skuSnapshot,
-
-                    qty:
-                        item.qty,
-
-                    unitPrice:
-                        item.unitPrice,
-
-                    selectedOptions:
-                        item.selectedOptions,
-
-                    personalisation:
-                        item.personalisation,
-
-                    taxRate:
-                        item.taxRate,
-
-                    taxAmount:
-                        item.taxAmount,
-
-                    lineTotal:
-                        item.lineTotal
-
-                })
-            );
-
-
-        /*
-         * 9. Save OrderItems
-         */
-
-        await OrderItem.insertMany(
-            orderItems
+    const pricing =
+        await calculateCartPricing(
+            cartItems
         );
 
-        await clearCartService(userId);
+
+    // ==========================================
+    // 4. Apply coupon
+    // ==========================================
+
+    let discount = 0;
+    let appliedCouponCode = null;
+
+    if (couponCode) {
+
+        const coupon =
+            await Coupon.findOne({
+                code: couponCode.toUpperCase(),
+                isActive: true
+            }).lean();
+
+        if (!coupon) {
+            throw httpError(
+                400,
+                "Invalid coupon code"
+            );
+        }
 
 
-        /*
-         * 10. Return
-         */
+        const now = new Date();
 
-        return {
 
-            message:
-                "Order created successfully",
+        // Coupon not started
 
-            data: {
+        if (now < coupon.startDate) {
+            throw httpError(
+                400,
+                "Coupon is not active yet"
+            );
+        }
 
-                order,
 
-                items:
-                    orderItems
+        // Coupon expired
 
+        if (now > coupon.endDate) {
+            throw httpError(
+                400,
+                "Coupon has expired"
+            );
+        }
+
+
+        // Minimum order value
+
+        if (
+            pricing.subtotal <
+            coupon.minOrderValue
+        ) {
+            throw httpError(
+                400,
+                `Minimum order value is ${coupon.minOrderValue}`
+            );
+        }
+
+
+        // Calculate percentage discount
+
+        if (
+            coupon.discountType ===
+            "PERCENTAGE"
+        ) {
+
+            discount =
+                (
+                    pricing.subtotal *
+                    coupon.discountValue
+                ) / 100;
+
+        }
+
+
+        // Calculate fixed discount
+
+        if (
+            coupon.discountType ===
+            "FIXED"
+        ) {
+
+            discount =
+                coupon.discountValue;
+        }
+
+
+        // Discount cannot be greater
+        // than product subtotal
+
+        discount = Math.min(
+            discount,
+            pricing.subtotal
+        );
+
+
+        appliedCouponCode =
+            coupon.code;
+    }
+
+
+    // ==========================================
+    // 5. Get address
+    // ==========================================
+
+    const address =
+        await Address.findOne({
+            user: userId
+        }).lean();
+
+    if (!address) {
+        throw httpError(
+            400,
+            "Shipping address is required"
+        );
+    }
+
+
+    // ==========================================
+    // 6. Get selected shipping
+    // ==========================================
+
+    const shipping =
+        await getSelectedShippingRate(
+            userId,
+            shippingQuoteId,
+            shippingCourierId
+        );
+
+
+    // ==========================================
+    // 7. Calculate final total
+    // ==========================================
+
+    const total =
+        pricing.subtotal +
+        shipping.shippingCharge +
+        pricing.tax -
+        discount;
+
+
+    // ==========================================
+    // 8. Create Order
+    // ==========================================
+
+    const order =
+        await Order.create({
+
+            user:
+                userId,
+
+            source:
+                "STORE",
+
+            status:
+                "PENDING_PAYMENT",
+
+            pricing: {
+
+                subtotal:
+                    pricing.subtotal,
+
+                shipping:
+                    shipping.shippingCharge,
+
+                tax:
+                    pricing.tax,
+
+                discount:
+                    discount,
+
+                couponCode:
+                    appliedCouponCode,
+
+                total:
+                    total
+            },
+
+            shippingAddress: {
+
+                name:
+                    address.name,
+
+                phone:
+                    address.phone,
+
+                addressLine1:
+                    address.addressLine1,
+
+                addressLine2:
+                    address.addressLine2,
+
+                city:
+                    address.city,
+
+                state:
+                    address.state,
+
+                country:
+                    address.country,
+
+                pincode:
+                    address.pincode
+            },
+
+            shipping: {
+
+                pickupPincode:
+                    shipping.pickupPincode,
+
+                deliveryPincode:
+                    shipping.deliveryPincode,
+
+                courierId:
+                    shipping.courierId,
+
+                courierName:
+                    shipping.courierName,
+
+                shippingCharge:
+                    shipping.shippingCharge,
+
+                estimatedDelivery:
+                    shipping.estimatedDelivery
+            },
+
+            payment: {
+
+                method:
+                    "ONLINE",
+
+                provider:
+                    "RAZORPAY",
+
+                status:
+                    "PENDING"
             }
+        });
 
-        };
+
+    // ==========================================
+    // 9. Create OrderItems
+    // ==========================================
+
+    const orderItems =
+        pricing.items.map(
+            item => ({
+
+                order:
+                    order._id,
+
+                product:
+                    item.product,
+
+                nameSnapshot:
+                    item.nameSnapshot,
+
+                skuSnapshot:
+                    item.skuSnapshot,
+
+                qty:
+                    item.qty,
+
+                unitPrice:
+                    item.unitPrice,
+
+                selectedOptions:
+                    item.selectedOptions,
+
+                personalisation:
+                    item.personalisation,
+
+                taxRate:
+                    item.taxRate,
+
+                taxAmount:
+                    item.taxAmount,
+
+                lineTotal:
+                    item.lineTotal
+            })
+        );
+
+
+    // ==========================================
+    // 10. Save OrderItems
+    // ==========================================
+
+    await OrderItem.insertMany(
+        orderItems
+    );
+
+    await clearCartService(
+        userId
+    );
+
+
+    // ==========================================
+    // 11. Return
+    // ==========================================
+
+    return {
+
+        message:
+            "Order created successfully",
+
+        data: {
+
+            order,
+
+            items:
+                orderItems
+        }
     };
+};
 
 export const getAdminOrdersService =
     async (userId) => {
@@ -1096,7 +1188,7 @@ export const createQuotationOrderService = async (
             createdBy: null,
 
             // Order came from quotation
-            source: "BULK",
+            source: "QUOTATION",
 
             // Link quotation
             quotation: quotation._id,
@@ -1204,6 +1296,188 @@ export const createQuotationOrderService = async (
     return {
         message:
             "Quotation converted to order successfully",
+
+        data: {
+            order
+        }
+    };
+};
+
+
+// ==========================================
+// CUSTOMER CANCEL STORE ORDER
+// ==========================================
+
+export const cancelStoreOrderService = async (
+    orderId,
+    userId
+) => {
+
+    // ==========================================
+    // 1. Find order
+    // ==========================================
+
+    const order = await Order.findOne({
+        _id: orderId,
+        user: userId,
+        source: "STORE"
+    });
+
+    if (!order) {
+        throw httpError(
+            404,
+            "Store order not found"
+        );
+    }
+
+
+    // ==========================================
+    // 2. Check current status
+    // ==========================================
+
+    if (
+        order.status === "IN_PRODUCTION" ||
+        order.status === "COMPLETED"
+    ) {
+        throw httpError(
+            400,
+            "Order cannot be cancelled after production has started"
+        );
+    }
+
+
+    // ==========================================
+    // 3. Already cancelled
+    // ==========================================
+
+    if (order.status === "CANCELLED") {
+        throw httpError(
+            400,
+            "Order is already cancelled"
+        );
+    }
+
+
+    // ==========================================
+    // 4. Cancel order
+    // ==========================================
+
+    order.status = "CANCELLED";
+
+    await order.save();
+
+
+    // ==========================================
+    // 5. Return
+    // ==========================================
+
+    return {
+        message: "Order cancelled successfully",
+
+        data: {
+            order
+        }
+    };
+};
+
+
+// ==========================================
+// ADMIN UPDATE STORE ORDER STATUS
+// ==========================================
+
+export const updateStoreOrderStatusService = async (
+    orderId,
+    status
+) => {
+
+    // ==========================================
+    // 1. Validate status
+    // ==========================================
+
+    const allowedStatuses = [
+        "PENDING_PAYMENT",
+        "PAID",
+        "CONFIRMED",
+        "PROCESSING",
+        "IN_PRODUCTION",
+        "COMPLETED",
+        "CANCELLED"
+    ];
+
+    if (!status) {
+        throw httpError(
+            400,
+            "Order status is required"
+        );
+    }
+
+
+    if (!allowedStatuses.includes(status)) {
+        throw httpError(
+            400,
+            "Invalid order status"
+        );
+    }
+
+
+    // ==========================================
+    // 2. Find STORE order
+    // ==========================================
+
+    const order = await Order.findOne({
+        _id: orderId,
+        source: "STORE"
+    });
+
+    if (!order) {
+        throw httpError(
+            404,
+            "Store order not found"
+        );
+    }
+
+
+    // ==========================================
+    // 3. Already completed
+    // ==========================================
+
+    if (order.status === "COMPLETED") {
+
+        throw httpError(
+            400,
+            "Completed order cannot be updated"
+        );
+    }
+
+
+    // ==========================================
+    // 4. Already cancelled
+    // ==========================================
+
+    if (order.status === "CANCELLED") {
+
+        throw httpError(
+            400,
+            "Cancelled order cannot be updated"
+        );
+    }
+
+
+    // ==========================================
+    // 5. Update status
+    // ==========================================
+
+    order.status = status;
+
+    await order.save();
+
+
+    // ==========================================
+    // 6. Return
+    // ==========================================
+
+    return {
+        message: "Order status updated successfully",
 
         data: {
             order

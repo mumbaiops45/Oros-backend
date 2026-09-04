@@ -85,6 +85,14 @@ export const addToCartService = async (
     }
 ) => {
 
+    // Customer must be logged in
+if (!userId) {
+    throw httpError(
+        401,
+        "Please login to add products to cart"
+    );
+}
+
     if (!product) {
         throw httpError(
             400,

@@ -13,7 +13,7 @@ const orderSchema = new mongoose.Schema(
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-       default: null,
+            default: null,
             index: true
         },
 
@@ -21,7 +21,7 @@ const orderSchema = new mongoose.Schema(
             type: String,
             enum: [
                 "STORE",
-                "BULK",
+                "QUOTATION",
                 "MANUAL"
             ],
             default: "STORE"
@@ -64,6 +64,17 @@ const orderSchema = new mongoose.Schema(
                 type: Number,
                 required: true,
                 min: 0
+            },
+
+            discount: {
+                type: Number,
+                default: 0,
+                min: 0
+            },
+
+            couponCode: {
+                type: String,
+                default: null
             },
 
             total: {

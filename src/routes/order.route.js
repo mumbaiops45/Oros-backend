@@ -6,7 +6,9 @@ import {
     getMyOrdersController,
      getAdminOrdersController,
      createManualOrder,
-     createQuotationOrderController 
+     createQuotationOrderController ,
+     cancelStoreOrderController,
+     updateStoreOrderStatusController
 } from "../controllers/order.controller.js";
 import { protect ,authorize} from "../middlewares/auth.middleware.js";
 
@@ -18,6 +20,7 @@ const router =
 router.post(
     "/",
     protect,
+    authorize("user"),
     createOrderController
 );
 
@@ -35,13 +38,31 @@ router.get(
     getAdminOrdersController
 );
 
+router.patch(
+    "/:id/cancel",
+    protect,
+    authorize("user"),
+    cancelStoreOrderController
+);
+
+router.patch(
+    "/:id/status",
+    protect,
+    authorize("admin"),
+    updateStoreOrderStatusController
+);
+
+
 router.post("/manual",protect,authorize("staff","admin"),createManualOrder)
 
 router.post(
     "/quotation/:quotationId",
     protect,
+    authorize("user"),
     createQuotationOrderController
 );
+
+
 
 
 export default router;
