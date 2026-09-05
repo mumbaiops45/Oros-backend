@@ -28,34 +28,35 @@ export const createOrderController =
     };
 
 
-export const getMyOrdersController =
-    async (
-        req,
-        res
-    ) => {
+export const getMyOrdersController = async (
+    req,
+    res
+) => {
 
-        const result =
-            await getMyOrdersService(
-                req.user.id
-            );
+    const result =
+        await getMyOrdersService(
+            req.user.id,
+            req.query.page,
+            req.query.limit
+        );
 
-        return res
-            .status(200)
-            .json(result);
-    };
+    return res
+        .status(200)
+        .json(result);
+};
 
-export const getAdminOrdersController =
-    async (req, res) => {
+export const getAdminOrdersController = async (req, res) => {
 
-        const result =
-            await getAdminOrdersService(
-                req.query.userId
-            );
+    const result = await getAdminOrdersService(
+        req.query.userId,
+        req.query.page,
+        req.query.limit
+    );
 
-        return res
-            .status(200)
-            .json(result);
-    };
+    return res
+        .status(200)
+        .json(result);
+};
 
 
 export const createManualOrder = async (req, res) => {

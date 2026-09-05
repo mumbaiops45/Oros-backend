@@ -33,13 +33,33 @@ import Quotation
 
 export const getMyOrdersService =
     async (
-        userId
+        userId,
+        page = 1,
+        limit = 10
     ) => {
 
+        page = Number(page);
+        limit = Number(limit);
+
+        const skip =
+            (page - 1) * limit;
+
+
+        const filter = {
+            user: userId
+        };
+
+
+        const totalOrders =
+            await Order.countDocuments(
+                filter
+            );
+
+
         const orders =
-            await Order.find({
-                user: userId
-            })
+            await Order.find(
+                filter
+            )
                 .populate(
                     "quotation",
                     "type refNumber"
@@ -47,6 +67,8 @@ export const getMyOrdersService =
                 .sort({
                     createdAt: -1
                 })
+                .skip(skip)
+                .limit(limit)
                 .lean();
 
 
@@ -56,7 +78,22 @@ export const getMyOrdersService =
                 message:
                     "No orders found",
 
-                data: []
+                data: {
+                    orders: [],
+
+                    pagination: {
+                        page,
+                        limit,
+                        totalOrders,
+                        totalPages:
+                            Math.ceil(
+                                totalOrders / limit
+                            ),
+                        hasNextPage: false,
+                        hasPreviousPage:
+                            page > 1
+                    }
+                }
             };
         }
 
@@ -124,13 +161,41 @@ export const getMyOrdersService =
             );
 
 
+        const totalPages =
+            Math.ceil(
+                totalOrders / limit
+            );
+
+
         return {
 
             message:
                 "Orders fetched successfully",
 
-            data:
-                result
+            data: {
+
+                orders:
+                    result,
+
+                pagination: {
+
+                    page,
+
+                    limit,
+
+                    totalOrders,
+
+                    totalPages,
+
+                    hasNextPage:
+                        page < totalPages,
+
+                    hasPreviousPage:
+                        page > 1
+
+                }
+
+            }
 
         };
     };
@@ -521,114 +586,154 @@ export const createOrderService = async (
     };
 };
 
-export const getAdminOrdersService =
-    async (userId) => {
+export const getAdminOrdersService = async (
+    userId,
+    page = 1,
+    limit = 10
+) => {
 
-        const filter = {};
+    page = Number(page);
+    limit = Number(limit);
 
-        if (userId) {
+    const skip = (page - 1) * limit;
 
-            const user =
-                await User.findById(
-                    userId
-                ).lean();
+    const filter = {};
 
-            if (!user) {
-                throw httpError(
-                    404,
-                    "User not found"
-                );
-            }
+    if (userId) {
 
-            filter.user = userId;
-        }
+        const user =
+            await User.findById(userId).lean();
 
-        const orders =
-            await Order.find(filter)
-                .populate(
-                    "user",
-                    "name phone email role accountType"
-                )
-                .populate(
-                    "quotation",
-                    "type refNumber"
-                )
-                .sort({
-                    createdAt: -1
-                })
-                .lean();
-
-        if (!orders.length) {
-            return {
-                message: "No orders found",
-                data: []
-            };
-        }
-
-        const orderIds =
-            orders.map(
-                order => order._id
+        if (!user) {
+            throw httpError(
+                404,
+                "User not found"
             );
+        }
 
-        const orderItems =
-            await OrderItem.find({
-                order: {
-                    $in: orderIds
-                }
+        filter.user = userId;
+    }
+
+    const totalOrders =
+        await Order.countDocuments(filter);
+
+    const orders =
+        await Order.find(filter)
+            .populate(
+                "user",
+                "name phone email role accountType"
+            )
+            .populate(
+                "quotation",
+                "type refNumber"
+            )
+            .sort({
+                createdAt: -1
             })
-                .populate(
-                    "product",
-                    "name sku images"
-                )
-                .lean();
+            .skip(skip)
+            .limit(limit)
+            .lean();
 
-        const itemsMap =
-            new Map();
-
-        for (
-            const item
-            of orderItems
-        ) {
-
-            const orderId =
-                item.order.toString();
-
-            if (
-                !itemsMap.has(
-                    orderId
-                )
-            ) {
-                itemsMap.set(
-                    orderId,
-                    []
-                );
+    if (!orders.length) {
+        return {
+            message: "No orders found",
+            data: {
+                orders: [],
+                pagination: {
+                    page,
+                    limit,
+                    totalOrders,
+                    totalPages: Math.ceil(
+                        totalOrders / limit
+                    ),
+                    hasNextPage: false,
+                    hasPreviousPage: page > 1
+                }
             }
+        };
+    }
 
-            itemsMap
-                .get(orderId)
-                .push(item);
+    const orderIds =
+        orders.map(
+            order => order._id
+        );
+
+    const orderItems =
+        await OrderItem.find({
+            order: {
+                $in: orderIds
+            }
+        })
+            .populate(
+                "product",
+                "name sku images"
+            )
+            .lean();
+
+    const itemsMap =
+        new Map();
+
+    for (
+        const item
+        of orderItems
+    ) {
+
+        const orderId =
+            item.order.toString();
+
+        if (
+            !itemsMap.has(
+                orderId
+            )
+        ) {
+            itemsMap.set(
+                orderId,
+                []
+            );
         }
 
-        const result =
-            orders.map(
-                order => ({
-                    ...order,
+        itemsMap
+            .get(orderId)
+            .push(item);
+    }
 
-                    items:
-                        itemsMap.get(
-                            order._id.toString()
-                        ) || []
-                })
-            );
+    const result =
+        orders.map(
+            order => ({
+                ...order,
 
-        return {
-            message:
-                "Orders fetched successfully",
+                items:
+                    itemsMap.get(
+                        order._id.toString()
+                    ) || []
+            })
+        );
 
-            data:
-                result
-        };
+    return {
+        message:
+            "Orders fetched successfully",
+
+        data: {
+            orders: result,
+
+            pagination: {
+                page,
+                limit,
+                totalOrders,
+                totalPages: Math.ceil(
+                    totalOrders / limit
+                ),
+                hasNextPage:
+                    page <
+                    Math.ceil(
+                        totalOrders / limit
+                    ),
+                hasPreviousPage:
+                    page > 1
+            }
+        }
     };
+};
 
 
 

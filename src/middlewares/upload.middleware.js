@@ -35,11 +35,27 @@ export const profileUpload = createUpload("oros/profile");
 const quotationStorage = new CloudinaryStorage({
     cloudinary: getCloudinary(),
 
-    params: {
-        folder: "oros/quotation",
-        resource_type: "auto",
-        use_filename: true,
-        unique_filename: true
+    // Cloudinary's "auto" detection files PDFs under resource_type
+    // "image" (for page-preview support), and accounts now block public
+    // delivery of PDF/ZIP served that way. Quotation attachments (PDF,
+    // STL, STEP, ZIP, ...) are never transformed, so they always go up
+    // as "raw" — only real images/videos keep their own resource type,
+    // which is what keeps their preview/streaming working.
+    params: (req, file) => {
+
+        const isImage = file.mimetype.startsWith("image/");
+        const isVideo = file.mimetype.startsWith("video/");
+
+        return {
+            folder: "oros/quotation",
+            resource_type: isImage
+                ? "image"
+                : isVideo
+                    ? "video"
+                    : "raw",
+            use_filename: true,
+            unique_filename: true
+        };
     }
 });
 

@@ -7,6 +7,10 @@ const bannerSchema = new mongoose.Schema(
             enum: ["SLIDER", "SHOWREEL"],
             required: true
         },
+        kicker:{
+            type:String,
+            default:""
+        },
         title:{
             type:String,
             default:""
@@ -22,6 +26,11 @@ const bannerSchema = new mongoose.Schema(
         ctaUrl:{
             type:String,
             default:""
+        },
+        tone: {
+            type: String,
+            enum: ["LIGHT", "DARK"],
+            default: "LIGHT"
         },
 
 
