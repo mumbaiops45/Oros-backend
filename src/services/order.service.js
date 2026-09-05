@@ -40,6 +40,10 @@ export const getMyOrdersService =
             await Order.find({
                 user: userId
             })
+                .populate(
+                    "quotation",
+                    "type refNumber"
+                )
                 .sort({
                     createdAt: -1
                 })
@@ -544,6 +548,10 @@ export const getAdminOrdersService =
                 .populate(
                     "user",
                     "name phone email role accountType"
+                )
+                .populate(
+                    "quotation",
+                    "type refNumber"
                 )
                 .sort({
                     createdAt: -1

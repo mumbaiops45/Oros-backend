@@ -168,7 +168,10 @@ export const createQuotationService = async (userId, data) => {
                 {
                     quotation: quotation._id,
                     product: data.productId || null,
-                    qty: Number(data.qty)
+                    // a custom quote with no catalogue product picked has no
+                    // per-unit quantity yet — the desk prices it later, so
+                    // this is just a placeholder row, not a real qty
+                    qty: Number(data.qty) || 1
                 }
             ]
     );
@@ -178,7 +181,7 @@ export const createQuotationService = async (userId, data) => {
     // 3. Create quotation files
     const quotationFiles = [];
 
-    for (const file of data.files) {
+    for (const file of data.files || []) {
 
         const quotationFile =
             await QuotationFile.create({

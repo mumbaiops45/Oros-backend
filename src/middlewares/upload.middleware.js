@@ -34,9 +34,12 @@ export const profileUpload = createUpload("oros/profile");
 
 const quotationStorage = new CloudinaryStorage({
     cloudinary: getCloudinary(),
+
     params: {
         folder: "oros/quotation",
-        resource_type: "auto"
+        resource_type: "auto",
+        use_filename: true,
+        unique_filename: true
     }
 });
 

@@ -157,5 +157,5 @@ export const quotationSchema = new mongoose.Schema(
     }
 );
 
-export default mongoose.models.quotation ||
-    mongoose.model("quotation", quotationSchema);
+export default mongoose.models.Quotation ||
+    mongoose.model("Quotation", quotationSchema);
