@@ -5,7 +5,8 @@ import {
     getCartService,
     updateCartQuantityService,
     removeCartItemService,
-    clearCartService
+    clearCartService,
+    getAllCartService
 } from "../services/cart.service.js";
 
 
@@ -58,6 +59,15 @@ export const getCartController = async (
 
     }
 };
+
+export const getAllCartController= async(req,res)=>{
+    const {message,data}= await getAllCartService()
+    res.json({
+        success:true,
+        message,
+        data
+    })
+}
 
 
 export const updateCartQuantityController = async (

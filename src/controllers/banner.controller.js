@@ -1,4 +1,4 @@
-import {createBannerService,getBannersService,updateBannerByIdService} from "../services/banner.service.js";
+import {createBannerService,getBannersService,updateBannerByIdService,deleteBannerByIdService} from "../services/banner.service.js";
 
 export const createBanner =async(req,res)=>{
  const bannerdata = req.body;
@@ -45,6 +45,17 @@ export const getBanners = async (req, res) => {
     const { message, data } = await getBannersService(req.query);
     res.json({
         message,
+        success: true,
+        data
+    })
+}
+
+
+export const deleteBannerById = async(req,res)=>{
+    const {message,data}= await deleteBannerByIdService(req.params.id);
+
+    res.json({
+       message,
         success: true,
         data
     })

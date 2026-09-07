@@ -34,6 +34,15 @@ const cartSchema = new mongoose.Schema(
                         type: String,
                         required: true,
                         trim: true
+                    },
+                    priceDelta: {
+                        type: Number,
+                        default: 0
+                    },
+                    priceMultiplier: {
+                        type: Number,
+                        default: 1,
+                        min: 0
                     }
                 }
             ],

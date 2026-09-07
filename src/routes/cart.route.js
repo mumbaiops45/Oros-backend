@@ -9,7 +9,8 @@ import {
     getCartController,
     updateCartQuantityController,
     removeCartItemController,
-    clearCartController
+    clearCartController,
+    getAllCartController
 } from "../controllers/cart.controller.js";
 
 
@@ -21,6 +22,8 @@ router.use(protect);
 router.post("/",authorize("user"), addToCartController);
 
 router.get("/", getCartController);
+
+router.get("/admin",authorize("admin"), getAllCartController);
 
 router.patch("/:id",authorize("user"), updateCartQuantityController);
 

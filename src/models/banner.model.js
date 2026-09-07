@@ -7,25 +7,47 @@ const bannerSchema = new mongoose.Schema(
             enum: ["SLIDER", "SHOWREEL"],
             required: true
         },
-        kicker:{
-            type:String,
-            default:""
+        kicker: {
+            type: String,
+            default: ""
         },
-        title:{
-            type:String,
-            default:""
+        title1: {
+            type: String,
+            default: ""
         },
-          subTitle:{
-            type:String,
-            default:""
+
+        title1Color: {
+            type: String,
+            default: "#2b1b4d"
         },
-                ctaLabel:{
-            type:String,
-            default:""
+
+        title2: {
+            type: String,
+            default: ""
         },
-        ctaUrl:{
-            type:String,
-            default:""
+
+        title2Color: {
+            type: String,
+            default: "#ff5a2c"
+        },
+
+        subTitle: {
+            type: String,
+            default: ""
+        },
+
+        subTitleColor: {
+            type: String,
+            default: "#2b1b4d"
+        },
+
+        ctaLabel: {
+            type: String,
+            default: ""
+        },
+        ctaUrl: {
+            type: String,
+            default: ""
         },
         tone: {
             type: String,

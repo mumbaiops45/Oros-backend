@@ -133,3 +133,52 @@ export const getBannersService = async (query = {}) => {
         }
     }
 }
+
+
+export const deleteBannerByIdService = async (bannerId) => {
+
+    if (!bannerId) {
+        throw new Error("BannerId is required");
+    }
+
+    const banner = await Banner.findById(bannerId);
+
+    if (!banner) {
+        throw new Error("Banner not exist");
+    }
+
+    await Banner.findByIdAndDelete(bannerId);
+
+    await Banner.updateMany(
+        {
+            type: banner.type,
+            order: {
+                $gt: banner.order
+            }
+        },
+        {
+            $inc: {
+                order: -1
+            }
+        }
+    );
+
+    if (banner.mediaUrlDesktopPublicId) {
+        await cloudinary.uploader.destroy(
+            banner.mediaUrlDesktopPublicId
+        );
+    }
+
+    if (banner.mediaUrlMobilePublicId) {
+        await cloudinary.uploader.destroy(
+            banner.mediaUrlMobilePublicId
+        );
+    }
+
+    return {
+        message: "Banner deleted",
+        data: {
+            banner
+        }
+    };
+};
