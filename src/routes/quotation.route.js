@@ -4,7 +4,8 @@ import {
     createQuotation,
     updateQuotation,
     updateQuotationByAdmin,
-    getQuotation
+    getQuotation,
+    downloadQuotationFile
 } from "../controllers/quotation.controller.js";
 
 import {
@@ -45,6 +46,9 @@ router.put(
     authorize("admin"),
     updateQuotationByAdmin
 );
+
+// public: fileUrl links point here, presigned redirect to the bucket
+router.get("/files/:id", downloadQuotationFile);
 
 router.get("/",protect,authorize("admin","user"),getQuotation)
 

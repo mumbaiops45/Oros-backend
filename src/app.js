@@ -23,6 +23,10 @@ import couponRoutes from "./routes/coupon.routes.js";
 
 const app = expres();
 
+// behind Render's proxy - so req.protocol reflects the original https
+// request when we build absolute file URLs
+app.set("trust proxy", 1);
+
 connectDB()
 app.use(expres.json());
 
