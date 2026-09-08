@@ -4,7 +4,7 @@ import QuotationFile from "../models/quotationFile.model.js";
 import QuotationMessage from "../models/quotationMessage.model.js";
 import User from "../models/User.model.js";
 import mongoose from "mongoose";
-
+// import Notification from "../models/notification.model.js";
 
 /*
 --------------------------------
@@ -208,6 +208,20 @@ export const createQuotationService = async (userId, data) => {
             });
     }
 
+    // const admin = await User.findOne({
+    //     role: "admin"
+    // }).select("_id");
+
+    // if (admin) {
+    //     await Notification.create({
+    //         recipient: admin._id,
+    //         type: "QUOTATION_CREATED",
+    //         message: `quotation created to  ${quotation.refNumber}`,
+    //         referenceId: quotation.refNumber,
+    //         isRead: false
+    //     });
+    // }
+
     return {
         message: "Quotation created successfully",
         data: {
@@ -258,7 +272,7 @@ export const updateQuotationService = async (
             "QUOTED"
         ];
 
-            if (!cancellableStatuses.includes(quotation.status)) {
+        if (!cancellableStatuses.includes(quotation.status)) {
             throw new Error(
                 "Quotation cannot be cancelled in its current status"
             );
@@ -681,7 +695,7 @@ export const getQuotationService = async (user, query) => {
     const skip = (page - 1) * limit;
     let filter = {};
     if (user.role !== "admin") {
- filter.customer = new mongoose.Types.ObjectId(user.id);
+        filter.customer = new mongoose.Types.ObjectId(user.id);
     }
     const quotation = await Quotation.aggregate([
         {

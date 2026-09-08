@@ -87,12 +87,12 @@ export const addToCartService = async (
 ) => {
 
     // Customer must be logged in
-if (!userId) {
-    throw httpError(
-        401,
-        "Please login to add products to cart"
-    );
-}
+    if (!userId) {
+        throw httpError(
+            401,
+            "Please login to add products to cart"
+        );
+    }
 
     if (!product) {
         throw httpError(
@@ -124,6 +124,27 @@ if (!userId) {
     const productOptions = await ProductOption.find({
         product: product
     }).lean();
+
+    const requiredOptions = productOptions.filter(
+        (option) => option.isRequired
+    );
+
+    const selectedOptionNames = new Set(
+        selectedOptions.map((option) => option.name)
+    );
+
+    const missingOptions = requiredOptions.filter(
+        (option) => !selectedOptionNames.has(option.name)
+    );
+
+    if (missingOptions.length > 0) {
+        throw httpError(
+            400,
+            `Please select required options: ${missingOptions
+                .map((option) => option.name)
+                .join(", ")}`
+        );
+    }
 
 
 
@@ -168,8 +189,8 @@ if (!userId) {
     // basePrice × Π(priceMultiplier) + Σ(priceDelta)
     const optionValues = productOptions.length
         ? await ProductOptionValue.find({
-              option: { $in: productOptions.map((o) => o._id) }
-          }).lean()
+            option: { $in: productOptions.map((o) => o._id) }
+        }).lean()
         : [];
 
     const optionByName = new Map(
@@ -180,10 +201,10 @@ if (!userId) {
         const opt = optionByName.get(sel.name);
         const match = opt
             ? optionValues.find(
-                  (v) =>
-                      String(v.option) === String(opt._id) &&
-                      v.value === sel.value
-              )
+                (v) =>
+                    String(v.option) === String(opt._id) &&
+                    v.value === sel.value
+            )
             : null;
         return {
             name: sel.name,

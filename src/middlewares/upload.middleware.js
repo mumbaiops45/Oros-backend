@@ -51,190 +51,409 @@ const ALLOWED_3D_FORMATS = [
     ".igs"
 ];
 
-/* ------------------------------------------------------------------
-   3D model storage
 
-   Cloudinary's free plan refuses any single asset over 10 MB
-   ("File size too large. Got X. Maximum is 10485760.") - and that is
-   an account-level limit on the finished asset, so chunking the
-   transfer does NOT get past it. 3D models routinely run larger.
+// ================================================================
+// S3 compatible storage
+// R2 / S3 / B2
+// ================================================================
 
-   When an S3-compatible bucket is configured (S3_* env vars - see
-   config/objectStore.js) models go there instead, with no size cap.
-   Otherwise we fall back to Cloudinary chunked upload, which still
-   works for models under 10 MB.
------------------------------------------------------------------- */
-
-// ── S3-compatible storage (R2 / S3 / B2) ──────────────────────────
 class S3ModelStorage {
 
     _handleFile(req, file, cb) {
 
-        const id =
-            `${randomUUID()}${path.extname(file.originalname).toLowerCase()}`;
+        const extension = path
+            .extname(file.originalname)
+            .toLowerCase();
+
+        const id = `${randomUUID()}${extension}`;
+
         const key = `${MODEL_KEY_PREFIX}${id}`;
 
         const upload = new Upload({
+
             client: getObjectStore(),
+
             params: {
+
                 Bucket: OBJECT_STORE_BUCKET,
+
                 Key: key,
+
                 Body: file.stream,
-                ContentType: file.mimetype || "application/octet-stream",
+
+                ContentType:
+                    file.mimetype ||
+                    "application/octet-stream",
+
                 Metadata: {
-                    originalname: encodeURIComponent(file.originalname)
+
+                    originalname:
+                        encodeURIComponent(
+                            file.originalname
+                        ),
+
+                    extension
                 }
             }
         });
 
-        // progress events carry the running byte count - multer doesn't
-        // set file.size for a custom engine, so report it ourselves
+
+        // Track uploaded bytes
+
         let bytes = 0;
-        upload.on("httpUploadProgress", (progress) => {
-            if (progress.loaded) {
-                bytes = progress.loaded;
+
+        upload.on(
+            "httpUploadProgress",
+            (progress) => {
+
+                if (progress.loaded) {
+                    bytes = progress.loaded;
+                }
+
             }
-        });
+        );
+
 
         upload
             .done()
+
             .then(() => {
 
                 const base =
                     process.env.SERVER_PUBLIC_URL ||
                     `${req.protocol}://${req.get("host")}`;
 
+
                 cb(null, {
-                    // the client links straight to this; the route below
-                    // presigns the bucket object and redirects
-                    path: `${base}/api/quotation/files/${id}`,
+
+                    // Download API URL
+                    path:
+                        `${base}/api/quotation/files/${id}`,
+
+                    // Object storage key
                     key,
+
+                    // Stored filename
                     filename: id,
-                    size: bytes
+
+                    // Original filename
+                    originalname:
+                        file.originalname,
+
+                    // Extension
+                    extension,
+
+                    // File size
+                    size: bytes,
+
+                    // MIME type
+                    mimetype:
+                        file.mimetype ||
+                        "application/octet-stream"
                 });
+
             })
+
             .catch(cb);
     }
+
 
     _removeFile(req, file, cb) {
 
         getObjectStore()
+
             .send(
                 new DeleteObjectCommand({
-                    Bucket: OBJECT_STORE_BUCKET,
-                    Key: file.key
+
+                    Bucket:
+                        OBJECT_STORE_BUCKET,
+
+                    Key:
+                        file.key
                 })
             )
+
             .then(() => cb(null))
+
             .catch(cb);
     }
 }
 
-// ── Cloudinary chunked fallback (only useful for models < 10 MB) ───
-// must stay below Cloudinary's per-request limit; 6 MB keeps a margin
-// under the 10 MB free-plan cap
-const MODEL_CHUNK_SIZE = 6 * 1024 * 1024;
+
+
+// ================================================================
+// Cloudinary chunked storage
+// Used only when S3 / R2 / B2 is NOT configured
+// ================================================================
+
+const MODEL_CHUNK_SIZE =
+    6 * 1024 * 1024;
+
 
 class CloudinaryChunkedStorage {
 
     constructor({ folder }) {
+
         this.folder = folder;
     }
 
+
     _handleFile(req, file, cb) {
 
-        const tmpPath = path.join(
-            os.tmpdir(),
-            `oros-3d-${randomUUID()}${path.extname(file.originalname)}`
+        const extension =
+            path
+                .extname(file.originalname)
+                .toLowerCase();
+
+
+        const originalName =
+            file.originalname;
+
+
+        const nameWithoutExtension =
+            path.basename(
+                originalName,
+                extension
+            );
+
+
+        const tmpPath =
+            path.join(
+                os.tmpdir(),
+                `oros-3d-${randomUUID()}${extension}`
+            );
+
+
+        const sink =
+            fs.createWriteStream(tmpPath);
+
+
+        sink.on(
+            "error",
+            cb
         );
 
-        const sink = fs.createWriteStream(tmpPath);
 
-        sink.on("error", cb);
+        file.stream.on(
+            "error",
+            (err) => {
 
-        file.stream.on("error", (err) => {
-            sink.destroy();
-            fs.unlink(tmpPath, () => cb(err));
-        });
+                sink.destroy();
 
-        sink.on("finish", () => {
+                fs.unlink(
+                    tmpPath,
+                    () => cb(err)
+                );
+            }
+        );
 
-            // cloudinary.v2 signature is upload_large(path, options,
-            // callback). The `chunk_size` option is what actually splits
-            // the upload into sub-10-MB requests - without it the SDK
-            // default (20 MB) sends smaller files in one shot and
-            // Cloudinary answers "File size too large. Got X. Maximum is
-            // 10485760." on the free plan.
-            getCloudinary().uploader.upload_large(
-                tmpPath,
-                {
-                    folder: this.folder,
-                    resource_type: "raw",
-                    use_filename: true,
-                    unique_filename: true,
-                    chunk_size: MODEL_CHUNK_SIZE
-                },
-                (err, result) => {
 
-                    fs.unlink(tmpPath, () => {});
+        sink.on(
+            "finish",
+            () => {
 
-                    if (err || !result) {
-                        return cb(
-                            err ||
-                            new Error("Upload failed")
-                        );
-                    }
+                /*
+                 * Upload the file to Cloudinary.
+                 *
+                 * We explicitly create the public_id
+                 * with the original extension.
+                 */
 
-                    cb(null, {
-                        path: result.secure_url,
-                        filename: result.public_id,
-                        size: result.bytes
-                    });
-                }
-            );
-        });
+                getCloudinary()
+                    .uploader
+                    .upload_large(
+
+                        tmpPath,
+
+                        {
+
+                            folder:
+                                this.folder,
+
+                            resource_type:
+                                "raw",
+
+                            /*
+                             * Important:
+                             * public_id contains extension
+                             */
+
+                            public_id:
+                                `${nameWithoutExtension}-${randomUUID()}${extension}`,
+
+                            /*
+                             * Prevent Cloudinary from
+                             * modifying the filename
+                             */
+
+                            use_filename:
+                                false,
+
+                            unique_filename:
+                                false,
+
+                            overwrite:
+                                false,
+
+                            chunk_size:
+                                MODEL_CHUNK_SIZE
+                        },
+
+
+                        (err, result) => {
+
+                            // Delete temporary file
+
+                            fs.unlink(
+                                tmpPath,
+                                () => {}
+                            );
+
+
+                            if (
+                                err ||
+                                !result
+                            ) {
+
+                                return cb(
+
+                                    err ||
+                                    new Error(
+                                        "3D model upload failed"
+                                    )
+
+                                );
+                            }
+
+
+                            /*
+                             * Return complete file information
+                             */
+
+                            cb(null, {
+
+                                path:
+                                    result.secure_url,
+
+                                filename:
+                                    result.public_id,
+
+                                originalname:
+                                    originalName,
+
+                                extension,
+
+                                size:
+                                    result.bytes,
+
+                                mimetype:
+                                    file.mimetype ||
+                                    "application/octet-stream",
+
+                                public_id:
+                                    result.public_id
+                            });
+
+                        }
+                    );
+
+            }
+        );
+
 
         file.stream.pipe(sink);
     }
 
+
     _removeFile(req, file, cb) {
 
-        getCloudinary().uploader.destroy(
-            file.filename,
-            { resource_type: "raw" },
-            cb
-        );
+        getCloudinary()
+            .uploader
+            .destroy(
+
+                file.filename,
+
+                {
+                    resource_type: "raw"
+                },
+
+                cb
+            );
     }
 }
 
-const storage = isObjectStoreConfigured
-    ? new S3ModelStorage()
-    : new CloudinaryChunkedStorage({ folder: "oros/3d-models" });
 
-const fileFilter = (req, file, cb) => {
 
-    const extension = file.originalname
-        .toLowerCase()
-        .slice(file.originalname.lastIndexOf("."));
+// ================================================================
+// Select storage
+// ================================================================
 
-    if (!ALLOWED_3D_FORMATS.includes(extension)) {
-        return cb(
-            new Error("Only 3D model files are allowed"),
-            false
+const storage =
+    isObjectStoreConfigured
+
+        ? new S3ModelStorage()
+
+        : new CloudinaryChunkedStorage({
+            folder: "oros/3d-models"
+        });
+
+
+
+// ================================================================
+// File filter
+// ================================================================
+
+const fileFilter =
+    (req, file, cb) => {
+
+        const extension =
+            path
+                .extname(file.originalname)
+                .toLowerCase();
+
+
+        if (
+            !ALLOWED_3D_FORMATS
+                .includes(extension)
+        ) {
+
+            return cb(
+
+                new Error(
+                    "Only 3D model files are allowed"
+                ),
+
+                false
+            );
+        }
+
+
+        cb(
+            null,
+            true
         );
-    }
+    };
 
-    cb(null, true);
-};
 
-export const quotationUpload = multer({
-    storage,
-    fileFilter,
 
-    limits: {
-        fileSize: 100 * 1024 * 1024
-    }
-});
+// ================================================================
+// Multer upload
+// ================================================================
+
+export const quotationUpload =
+    multer({
+
+        storage,
+
+        fileFilter,
+
+        limits: {
+
+            fileSize:
+                100 * 1024 * 1024
+        }
+
+    });
 /* ------------------------------------------------------------------
    NEW: PRODUCT MEDIA (image + video) -> straight to cloudinary
    used by the normal single media API

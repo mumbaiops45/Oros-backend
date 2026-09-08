@@ -51,6 +51,71 @@ const attachPrimaryMedia = async (products) => {
     }));
 };
 
+/*
+ * Storefront cards let the shopper pick a variant and add to cart without
+ * opening the PDP, so each card needs its product's options and their
+ * values. Two grouped queries for the whole list beats an N+1 per card.
+ */
+
+const attachOptions = async (products) => {
+
+    if (!products.length) {
+        return products;
+    }
+
+    const productIds = products.map((item) => item._id);
+
+    const options = await ProductOption.find({
+        product: { $in: productIds }
+    })
+        .sort({ createdAt: 1 })
+        .lean();
+
+    const values = options.length
+        ? await ProductOptionValue.find({
+            option: { $in: options.map((option) => option._id) }
+        })
+            .sort({ sortOrder: 1 })
+            .lean()
+        : [];
+
+    const valuesByOption = new Map();
+
+    for (const value of values) {
+        const key = String(value.option);
+
+        if (!valuesByOption.has(key)) {
+            valuesByOption.set(key, []);
+        }
+
+        valuesByOption.get(key).push(value);
+    }
+
+    const optionsByProduct = new Map();
+
+    for (const option of options) {
+        const key = String(option.product);
+
+        if (!optionsByProduct.has(key)) {
+            optionsByProduct.set(key, []);
+        }
+
+        optionsByProduct.get(key).push({
+            ...option,
+            values: valuesByOption.get(String(option._id)) || []
+        });
+    }
+
+    return products.map((product) => ({
+        ...product,
+        options: optionsByProduct.get(String(product._id)) || []
+    }));
+};
+
+/* thumbnail + options with values — everything a storefront card needs */
+const decorateForCards = async (products) =>
+    attachOptions(await attachPrimaryMedia(products));
+
 export const getProductsService = async (query) => {
 
     const {
@@ -134,7 +199,7 @@ export const getProductsService = async (query) => {
 
     const total = await Product.countDocuments(filter);
 
-    const productsWithMedia = await attachPrimaryMedia(products);
+    const productsWithMedia = await decorateForCards(products);
 
     return {
         message: "Products fetched successfully",
@@ -500,7 +565,7 @@ export const getSuggestedProductsService = async (id, query) => {
         return {
             message: "Suggested products fetched successfully",
             data: {
-                products: await attachPrimaryMedia(
+                products: await decorateForCards(
                     sameSubcategory
                 )
             }
@@ -544,7 +609,7 @@ export const getSuggestedProductsService = async (id, query) => {
     return {
         message: "Suggested products fetched successfully",
         data: {
-            products: await attachPrimaryMedia(products)
+            products: await decorateForCards(products)
         }
     };
 };
@@ -686,7 +751,7 @@ export const getBestSellerProductsService = async (query) => {
     return {
         message: "Best seller products fetched successfully",
         data: {
-            products: await attachPrimaryMedia(withCategories)
+            products: await decorateForCards(withCategories)
         }
     };
 };

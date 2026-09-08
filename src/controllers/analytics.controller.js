@@ -7,7 +7,8 @@ import {
     getOrderBreakdownService,
     getQuotationAnalyticsService,
     getNonMovingProductsService,
-    getDashboardService
+    getDashboardService,
+getProductTimeAnalyticsService
 } from "../services/analytics.service.js";
 
 
@@ -126,3 +127,22 @@ export const getNonMovingProductsController = async (req, res) => {
         data
     });
 };
+
+
+export const getProductTimeAnalyticsController = async (req, res) => {
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10));
+
+    const {
+        message,
+        data
+    } = await getProductTimeAnalyticsService(page, limit);
+
+    res.json({
+        success: true,
+        message,
+        data
+    });
+};
+

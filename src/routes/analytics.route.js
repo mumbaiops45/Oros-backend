@@ -9,7 +9,9 @@ import {
     getTopCustomersController,
     getOrderBreakdownController,
     getQuotationAnalyticsController,
-    getNonMovingProductsController
+    getNonMovingProductsController,
+    getProductTimeAnalyticsController
+
 } from "../controllers/analytics.controller.js";
 
 import {
@@ -47,6 +49,10 @@ router.get("/quotations", getQuotationAnalyticsController);
 
 // published products with zero sales in the window
 router.get("/non-moving-products", getNonMovingProductsController);
+
+router.get("/product-time-analytics",getProductTimeAnalyticsController
+);
+
 
 
 export default router;

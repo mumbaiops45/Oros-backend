@@ -1,6 +1,9 @@
 import Order from "../models/order.model.js";
 import crypto from "crypto";
 import razorpay from "../config/razorpay.js";
+// import Notification from "../models/notification.model.js";
+// import User from "../models/User.model.js";
+
 
 
 export const createUserPaymentOrder = async (orderId) => {
@@ -109,6 +112,20 @@ export const verifyUserPayment = async ({
     order.status = "PAID";
 
     await order.save();
+
+    // const admin = await User.findOne({
+    //     role: "admin"
+    // }).select("_id")
+
+    // if (admin) {
+    //     await Notification.create({
+    //         recipient: admin._id,
+    //         type: "ORDER_PAID_AND_PAYMENT_RECEIVED",
+    //         message: `Payment received for order ${order._id}`,
+    //         referenceId: order._id,
+    //         isRead: false
+    //     })
+    // }
 
     return {
         message:

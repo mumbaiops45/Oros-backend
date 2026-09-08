@@ -1,3 +1,6 @@
+
+
+import ProductView from "../models/view.model.js";
 import Order from "../models/order.model.js";
 import OrderItem from "../models/orderItem.model.js";
 import Product from "../models/product.model.js";
@@ -6,6 +9,7 @@ import Quotation from "../models/quotation.model.js";
 import Category from "../models/category.model.js";
 import ProductMedia from "../models/productMedia.model.js";
 import httpError from "../utils/httpError.js";
+
 
 /* ------------------------------------------------------------------
    Collection names are read off the models so a model rename never
@@ -1097,3 +1101,83 @@ export const getDashboardService = async (query = {}) => {
         }
     };
 };
+
+export const getProductTimeAnalyticsService=async (page=1,limit=10) => {
+    const skip=(page-1)*limit;
+   
+    const analytics= await ProductView.aggregate([
+        {
+            $group:{
+                _id:"$product",
+               totalDuration:{
+                $sum:"$duration"
+               },
+               totalviews:{
+                $sum:1
+               },
+               averageDuration:{
+                $avg:"$duration"
+               }
+            }
+
+        },
+              {
+            $sort: {
+                totalDuration: -1
+            }
+        },
+        {
+            $lookup:{
+                from:"products",
+                localField:"_id",
+                foreignField:"_id",
+                as:"product"
+            }
+        },
+      {
+        $lookup:{
+            from:"productmedias",
+            localField:"_id",
+            foreignField:"product",
+            as:"images"
+        }
+      },
+        {
+            $unwind:"$product"
+        },
+        {
+            $project:{
+                _id:0,
+                productId:"$_id",
+                 productImage: {
+                    $arrayElemAt: [
+                        "$images.url",
+                        0
+                    ]
+                },
+                productName:"$product.name",
+                sku:"$product.sku",
+                totalDuration:1,
+                totalviews:1,
+                 averageDuration:1
+            }
+        },
+        {
+            $skip:skip
+        },
+        {
+            $limit:limit
+        }
+
+        
+    ])
+     return {
+        message: "Product time analytics fetched successfully",
+        data: {
+            analytics
+        }
+    }; 
+}
+
+
+

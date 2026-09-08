@@ -19,7 +19,7 @@ import quotationRoutes from "./routes/quotation.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
 import couponRoutes from "./routes/coupon.routes.js";
-
+import viewProductRoutes from "./routes/view.route.js";
 
 const app = expres();
 
@@ -47,6 +47,7 @@ app.use("/api/quotation",quotationRoutes);
 app.use("/api/Banner",bannerRoutes);
 app.use("/api/analytics",analyticsRoutes);
 app.use("/api/coupons",couponRoutes);
+app.use("/api/view-product",viewProductRoutes);
 
 app.use(errorHandler)
 
