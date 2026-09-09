@@ -4,7 +4,9 @@ import QuotationFile from "../models/quotationFile.model.js";
 import QuotationMessage from "../models/quotationMessage.model.js";
 import User from "../models/User.model.js";
 import mongoose from "mongoose";
-// import Notification from "../models/notification.model.js";
+import Notification from "../models/notification.model.js";
+import { ObjectPart$ } from "@aws-sdk/client-s3";
+import { create } from "axios";
 
 /*
 --------------------------------
@@ -208,19 +210,19 @@ export const createQuotationService = async (userId, data) => {
             });
     }
 
-    // const admin = await User.findOne({
-    //     role: "admin"
-    // }).select("_id");
+    const admin = await User.findOne({
+        role: "admin"
+    }).select("_id");
 
-    // if (admin) {
-    //     await Notification.create({
-    //         recipient: admin._id,
-    //         type: "QUOTATION_CREATED",
-    //         message: `quotation created to  ${quotation.refNumber}`,
-    //         referenceId: quotation.refNumber,
-    //         isRead: false
-    //     });
-    // }
+    if (admin) {
+        await Notification.create({
+            recipient: admin._id,
+            type: "QUOTATION_CREATED",
+            message: `quotation created to  ${quotation.refNumber}`,
+            referenceId: quotation._id,
+            isRead: false
+        });
+    }
 
     return {
         message: "Quotation created successfully",
@@ -240,9 +242,12 @@ export const updateQuotationService = async (
     data
 ) => {
 
+
+
     if (!quotationId) {
         throw new Error("Quotation id required");
     }
+    const user = await User.findById(userId).select("name")
 
     const quotation = await Quotation.findOne({
         _id: quotationId,
@@ -259,6 +264,7 @@ export const updateQuotationService = async (
     Update quotation
     --------------------------------
     */
+
     if (data.status !== undefined) {
         if (data.status !== "CANCELLED") {
             throw new Error(
@@ -281,7 +287,22 @@ export const updateQuotationService = async (
 
         await quotation.save();
 
+        const admin = await User.findOne({
+            role: "admin"
+        })
+
+        if (admin) {
+            await Notification.create({
+                recipient: admin._id,
+                type: "QUOTATION_CANCEL",
+                message: `the Quotation ${quotation.refNumber} is cancelled by ${user.name}`,
+                referenceId: quotation._id
+            })
+        }
+
     }
+
+
 
     const quotationData = {};
 
@@ -400,6 +421,19 @@ export const updateQuotationService = async (
 
             files.push(quotationFile);
         }
+
+        const admin = await User.findOne({
+            role:"admin"
+        })
+           if (admin) {
+            await Notification.create({
+                recipient: admin._id,
+                type: "QUOTATION_FILE",
+                message: `An file is added by ${user.name} to quotation whoes refrence Id is ${quotation.refNumber} `,
+                referenceId: quotation._id
+            })
+        }
+
     }
 
 
@@ -418,6 +452,18 @@ export const updateQuotationService = async (
             sender: "CUSTOMER",
             message: data.message
         });
+         const admin = await User.findOne({
+            role:"admin"
+        })
+           if (admin) {
+            await Notification.create({
+                recipient: admin._id,
+                type: "QUOTATION_MESSAGE",
+                message: `A message comee from costomer ${user.name} to quotation whoes refrence Id is ${quotation.refNumber} `,
+                referenceId: quotation._id
+            })
+        }
+
     }
 
 
@@ -505,6 +551,8 @@ export const updateQuotationByAdminService = async (
             ? Number(data.shipping)
             : quotation.shipping;
 
+
+
     if (
         subTotal < 0 ||
         tax < 0 ||
@@ -557,6 +605,43 @@ export const updateQuotationByAdminService = async (
         quotationData.validTill =
             data.validTill;
     }
+
+    if (data.shippingAddress !== undefined) {
+        const shippingAddress = parseObject(data.shippingAddress);
+        if (!shippingAddress) {
+            throw new Error("invalid shipping address");
+        }
+        const { name,
+            phone,
+            addressLine1,
+            addressLine2,
+            city,
+            state,
+            country,
+            pincode } = shippingAddress;
+
+        if (!name ||
+            !phone ||
+            !addressLine1 ||
+            !city ||
+            !state ||
+            !country ||
+            !pincode) {
+            throw new Error("Complete shipping address is required");
+        }
+
+        quotationData.shippingAddress = {
+            name,
+            phone,
+            addressLine1,
+            addressLine2: addressLine2 || "",
+            city,
+            state,
+            country,
+            pincode
+        };
+    }
+
 
     const updatedQuotation =
         await Quotation.findByIdAndUpdate(
@@ -676,6 +761,15 @@ export const updateQuotationByAdminService = async (
                 message: data.message
             });
     }
+
+if (quotation.customer) {
+    await Notification.create({
+        recipient: quotation.customer,
+        type: "QUOTATION",
+        message: `An update came for the quotation whose reference ID is ${quotation.refNumber}`,
+        referenceId: quotation._id
+    });
+}
 
     return {
         message:

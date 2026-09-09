@@ -1433,13 +1433,13 @@ export const cancelStoreOrderService = async (
     const order = await Order.findOne({
         _id: orderId,
         user: userId,
-        source: "STORE"
+        $or:[{source:"STORE"},{source:"QUOTATION"}]
     });
 
     if (!order) {
         throw httpError(
             404,
-            "Store order not found"
+            "order not found"
         );
     }
 
@@ -1539,13 +1539,13 @@ export const updateStoreOrderStatusService = async (
 
     const order = await Order.findOne({
         _id: orderId,
-        source: "STORE"
+      
     });
 
     if (!order) {
         throw httpError(
             404,
-            "Store order not found"
+            "order not found"
         );
     }
 

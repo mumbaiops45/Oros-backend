@@ -9,10 +9,12 @@ export const notificationSchema= new mongoose.Schema({
     type:{
         type:String,
         enum:[
-            "OORDER_PAID_AND_PAYMENT_RECEIVED",
+            "ORDER_PAID_AND_PAYMENT_RECEIVED",
             'QUOTATION_CREATED',
-            "WUOTATION_QUOTED",
-            "QUOTATION_MASSAGE",
+            "QUOTATION_FILE",
+            "QUOTATION",
+            "QUOTATION_CANCEL",
+            "QUOTATION_MESSAGE",
             "QUOTATION_ACCEPTED",
         ],
         required:true
@@ -24,7 +26,11 @@ export const notificationSchema= new mongoose.Schema({
     referenceId:{
         type:mongoose.Schema.Types.ObjectId,
         default:null
-    }
+    },
+    isRead: {
+    type: Boolean,
+    default: false
+}
 },
 {
     timestamps:true
