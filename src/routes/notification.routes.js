@@ -1,7 +1,10 @@
 import express from "express";
 
 import {
-    getNotifications
+    getNotifications,
+    updateNotificationRead,
+    deleteNotificationById,
+    clearNotification
 } from "../controllers/notification.controller.js";
 
 import {
@@ -17,5 +20,25 @@ router.get(
     authorize("user", "admin"),
     getNotifications
 );
+router.patch(
+    "/:id",
+    protect,
+    authorize("user", "admin"),
+   updateNotificationRead
+);
+router.delete(
+    "/clear",
+    protect,
+    authorize("user", "admin"),
+   clearNotification
+);
+router.delete(
+    "/:id",
+    protect,
+    authorize("user", "admin"),
+   deleteNotificationById
+);
+
+
 
 export default router;
