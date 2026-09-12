@@ -2,7 +2,6 @@ import User from "../models/User.model.js";
 import bcrypt from "bcryptjs";
 import Otp from "../models/otp.model.js";
 import { generateJwtToken } from "../utils/jwt.js";
-import { httpError } from "../utils/httpError.js";
 const fixedOtp = "123456";
 
 
@@ -139,8 +138,61 @@ export const loginService = async ({ phone }) => {
 
     };
 
+    if (user.role !== "user") {
+        throw new Error("This login is for customer accounts only. Admins and staff should use the admin panel.");
+    };
+
     const otpRecord = await Otp.findOne({ phone });
     if (otpRecord.lockedUntill && otpRecord.lockedUntill > new Date()) {
+        throw new Error("otp verification is temporarily locked, try after 30 minut");
+    }
+
+    const otpHash = await bcrypt.hash(fixedOtp, 10);
+    const expireAt = new Date(Date.now() + 10 * 60 * 1000);
+    await Otp.findOneAndUpdate({ phone },
+        {
+            otpHash,
+            expireAt,
+            consumeAt: null,
+            attempts: 0
+        },
+        {
+            new: true,
+            upsert: true
+        }
+    )
+
+    return {
+        message: "Login Otp send successfully",
+        data: {}
+    }
+}
+
+
+export const adminLoginService = async ({ phone }) => {
+    if (!phone) {
+        throw new Error("mobile number is required for login");
+
+    };
+    const user = await User.findOne({
+        phone
+    })
+    if (!user) {
+        throw new Error("User not found,first resiter");
+    };
+
+    if (user.isBlocked) {
+        throw new Error("Your account is blocked");
+
+    };
+
+    if (!["admin", "staff"].includes(user.role)) {
+        throw new Error("You are not authorized to access the admin console");
+
+    };
+
+    const otpRecord = await Otp.findOne({ phone });
+    if (otpRecord && otpRecord.lockedUntill && otpRecord.lockedUntill > new Date()) {
         throw new Error("otp verification is temporarily locked, try after 30 minut");
     }
 
@@ -254,63 +306,6 @@ export const verifyLoginOtpService = async ({
     user.lastLoginAt = new Date();
 
     await user.save();
-
-    return {
-        message: "Login successful",
-        data: {
-            user,
-            token
-        }
-    };
-};
-
-
-/* ------------------------------------------------------------------
-   ADMIN PANEL LOGIN
-
-   Staff never receive an OTP. The only credential pair that exists
-   today is SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD in .env, so that
-   is what this checks. The issued token carries role "superAdmin",
-   which `protect` resolves without a database lookup and which
-   `authorize` lets through every admin gated route.
------------------------------------------------------------------- */
-
-export const adminLoginService = async ({ email, password }) => {
-
-    if (!email || !password) {
-        throw httpError(400, "Email and password are required");
-    }
-
-    const superEmail = process.env.SUPER_ADMIN_EMAIL;
-    const superPassword = process.env.SUPER_ADMIN_PASSWORD;
-
-    if (!superEmail || !superPassword) {
-        throw httpError(
-            500,
-            "SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD are not configured"
-        );
-    }
-
-    const emailMatches =
-        String(email).trim().toLowerCase() ===
-        String(superEmail).trim().toLowerCase();
-
-    if (!emailMatches || String(password) !== String(superPassword)) {
-        throw httpError(401, "Invalid email or password");
-    }
-
-    const user = {
-        _id: "superAdmin",
-        name: "Super Admin",
-        email: superEmail,
-        role: "superAdmin"
-    };
-
-    const token = generateJwtToken({
-        _id: "superAdmin",
-        role: "superAdmin",
-        email: superEmail
-    });
 
     return {
         message: "Login successful",

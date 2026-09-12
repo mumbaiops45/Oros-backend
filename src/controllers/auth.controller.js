@@ -30,6 +30,15 @@
     })
     }
 
+    export const adminLogin =async (req,res)=>{
+    const {phone} =  req.body;
+    const {message,data} = await adminLoginService({phone});
+    res.json({
+        success:true,
+        message:message,
+        data
+    })
+    }
 
     export const verifyLoginOtp=async (req,res)=>{
     const {phone,otp} =  req.body;
@@ -41,23 +50,6 @@
     })
     }
 
-    export const adminLogin = async (req, res) => {
-
-        const { email, password } = req.body;
-
-        const { message, data } = await adminLoginService({ email, password });
-
-        res.json({
-            success: true,
-            message,
-            data
-        });
-    };
-
-    /**
-     * Whoever the bearer token belongs to. The panel calls this on boot to
-     * find out whether a stored token is still good.
-     */
     export const me = async (req, res) => {
 
         const { _id, name, email, role } = req.user;
