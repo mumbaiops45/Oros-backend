@@ -3,6 +3,7 @@ import crypto from "crypto";
 import razorpay from "../config/razorpay.js";
 import Notification from "../models/notification.model.js";
 import User from "../models/User.model.js";
+import { io } from "../../server.js";
 
 
 
@@ -118,13 +119,14 @@ export const verifyUserPayment = async ({
     }).select("_id")
 
     if (admin) {
-        await Notification.create({
+        const notification =await Notification.create({
             recipient: admin._id,
             type: "ORDER_PAID_AND_PAYMENT_RECEIVED",
             message: `Payment received for order ${order._id}`,
             referenceId: order._id,
             isRead: false
-        })
+        });
+        io.to("admin").emit("new_notification",notification);
     }
 
     return {

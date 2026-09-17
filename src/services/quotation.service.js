@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import Notification from "../models/notification.model.js";
 import { ObjectPart$ } from "@aws-sdk/client-s3";
 import { create } from "axios";
+import { io } from "../../server.js";
 
 /*
 --------------------------------
@@ -215,13 +216,15 @@ export const createQuotationService = async (userId, data) => {
     }).select("_id");
 
     if (admin) {
-        await Notification.create({
+        const notification = await Notification.create({
             recipient: admin._id,
             type: "QUOTATION_CREATED",
             message: `quotation created to  ${quotation.refNumber}`,
             referenceId: quotation._id,
             isRead: false
         });
+        io.to("admin").emit("new_notification", notification)
+
     }
 
     return {
@@ -292,12 +295,13 @@ export const updateQuotationService = async (
         })
 
         if (admin) {
-            await Notification.create({
+            const notification =await Notification.create({
                 recipient: admin._id,
                 type: "QUOTATION_CANCEL",
                 message: `the Quotation ${quotation.refNumber} is cancelled by ${user.name}`,
                 referenceId: quotation._id
             })
+               io.to("admin").emit("new_notification", notification);
         }
 
     }
@@ -423,15 +427,17 @@ export const updateQuotationService = async (
         }
 
         const admin = await User.findOne({
-            role:"admin"
+            role: "admin"
         })
-           if (admin) {
-            await Notification.create({
+        if (admin) {
+            const notification = await Notification.create({
                 recipient: admin._id,
                 type: "QUOTATION_FILE",
                 message: `An file is added by ${user.name} to quotation whoes refrence Id is ${quotation.refNumber} `,
                 referenceId: quotation._id
             })
+            io.to("admin").emit("new_notification", notification)
+
         }
 
     }
@@ -452,16 +458,17 @@ export const updateQuotationService = async (
             sender: "CUSTOMER",
             message: data.message
         });
-         const admin = await User.findOne({
-            role:"admin"
+        const admin = await User.findOne({
+            role: "admin"
         })
-           if (admin) {
-            await Notification.create({
+        if (admin) {
+            const notification =await Notification.create({
                 recipient: admin._id,
                 type: "QUOTATION_MESSAGE",
                 message: `A message comee from costomer ${user.name} to quotation whoes refrence Id is ${quotation.refNumber} `,
                 referenceId: quotation._id
-            })
+            });
+            io.to("admin").emit("new_notification",notification)
         }
 
     }
@@ -762,14 +769,16 @@ export const updateQuotationByAdminService = async (
             });
     }
 
-if (quotation.customer) {
-    await Notification.create({
-        recipient: quotation.customer,
-        type: "QUOTATION",
-        message: `An update came for the quotation whose reference ID is ${quotation.refNumber}`,
-        referenceId: quotation._id
-    });
-}
+    if (quotation.customer) {
+        const notification =await Notification.create({
+            recipient: quotation.customer,
+            type: "QUOTATION",
+            message: `An update came for the quotation whose reference ID is ${quotation.refNumber}`,
+            referenceId: quotation._id
+        });
+        io.to(`customer_${quotation.customer}`).emit("new_notification",notification)
+
+    }
 
     return {
         message:
