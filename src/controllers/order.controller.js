@@ -49,6 +49,9 @@ export const getAdminOrdersController = async (req, res) => {
 
     const result = await getAdminOrdersService(
         req.query.userId,
+        req.query.source,
+        req.query.paymentStatus,
+        req.query.status,
         req.query.page,
         req.query.limit
     );

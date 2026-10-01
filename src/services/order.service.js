@@ -588,6 +588,9 @@ export const createOrderService = async (
 
 export const getAdminOrdersService = async (
     userId,
+    source,
+    paymentStatus,
+    status,
     page = 1,
     limit = 10
 ) => {
@@ -599,10 +602,10 @@ export const getAdminOrdersService = async (
 
     const filter = {};
 
+    // Customer filter
     if (userId) {
 
-        const user =
-            await User.findById(userId).lean();
+        const user = await User.findById(userId).lean();
 
         if (!user) {
             throw httpError(
@@ -612,6 +615,24 @@ export const getAdminOrdersService = async (
         }
 
         filter.user = userId;
+    }
+
+    // Order source filter
+    if (source) {
+
+        filter.source = source;
+    }
+
+    // Payment status filter
+    if (paymentStatus) {
+
+        filter["payment.status"] = paymentStatus;
+    }
+
+    // Order status filter
+    if (status) {
+
+        filter.status = status;
     }
 
     const totalOrders =
@@ -635,19 +656,27 @@ export const getAdminOrdersService = async (
             .lean();
 
     if (!orders.length) {
+
         return {
             message: "No orders found",
+
             data: {
                 orders: [],
+
                 pagination: {
                     page,
                     limit,
                     totalOrders,
-                    totalPages: Math.ceil(
-                        totalOrders / limit
-                    ),
+
+                    totalPages:
+                        Math.ceil(
+                            totalOrders / limit
+                        ),
+
                     hasNextPage: false,
-                    hasPreviousPage: page > 1
+
+                    hasPreviousPage:
+                        page > 1
                 }
             }
         };
@@ -670,22 +699,15 @@ export const getAdminOrdersService = async (
             )
             .lean();
 
-    const itemsMap =
-        new Map();
+    const itemsMap = new Map();
 
-    for (
-        const item
-        of orderItems
-    ) {
+    for (const item of orderItems) {
 
         const orderId =
             item.order.toString();
 
-        if (
-            !itemsMap.has(
-                orderId
-            )
-        ) {
+        if (!itemsMap.has(orderId)) {
+
             itemsMap.set(
                 orderId,
                 []
@@ -709,25 +731,30 @@ export const getAdminOrdersService = async (
             })
         );
 
+    const totalPages =
+        Math.ceil(
+            totalOrders / limit
+        );
+
     return {
+
         message:
             "Orders fetched successfully",
 
         data: {
+
             orders: result,
 
             pagination: {
+
                 page,
                 limit,
                 totalOrders,
-                totalPages: Math.ceil(
-                    totalOrders / limit
-                ),
+                totalPages,
+
                 hasNextPage:
-                    page <
-                    Math.ceil(
-                        totalOrders / limit
-                    ),
+                    page < totalPages,
+
                 hasPreviousPage:
                     page > 1
             }

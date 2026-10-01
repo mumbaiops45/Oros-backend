@@ -315,9 +315,12 @@ export const updateUserBYidService =
         };
     };
 
-    export const getUsersService = async (query) => {
+export const getUsersService = async (query) => {
 
-    const { phone } = query;
+    const {
+        phone,
+        role
+    } = query;
 
     const filter = {};
 
@@ -328,11 +331,13 @@ export const updateUserBYidService =
         };
     }
 
+    if (role) {
+        filter.role = role;
+    }
+
     const users = await User
         .find(filter)
-        .select(
-            "-__v"
-        )
+        .select("-__v")
         .sort({
             createdAt: -1
         })
