@@ -15,7 +15,7 @@ router.delete("/:id",protect,authorize("admin"),deleteUserController);
 
 // profile edite by costomer
 
-router.get("/profile",protect,authorize('user',"admin"),getProfile);
+router.get("/profile",protect,authorize('user',"staff","admin"),getProfile);
 router.patch("/profile",protect,authorize("user","admin"),profileUpload.single("profileImage"),updateProfile);
 
 export default router;
