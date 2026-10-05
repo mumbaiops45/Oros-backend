@@ -331,8 +331,14 @@ export const getUsersService = async (query) => {
         };
     }
 
-    if (role) {
-        filter.role = role;
+    if (role === "user") {
+        filter.role = "user";
+    }
+
+    if (role === "team") {
+        filter.role = {
+            $in: ["admin", "staff"]
+        };
     }
 
     const users = await User

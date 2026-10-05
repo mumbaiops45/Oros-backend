@@ -142,10 +142,10 @@ export const loginService = async ({ phone }) => {
         throw new Error("This login is for customer accounts only. Admins and staff should use the admin panel.");
     };
 
-    const otpRecord = await Otp.findOne({ phone });
-    if (otpRecord.lockedUntill && otpRecord.lockedUntill > new Date()) {
-        throw new Error("otp verification is temporarily locked, try after 30 minut");
-    }
+    // const otpRecord = await Otp.findOne({ phone });
+    // if (otpRecord.lockedUntill && otpRecord.lockedUntill > new Date()) {
+    //     throw new Error("otp verification is temporarily locked, try after 30 minut");
+    // }
 
     const otpHash = await bcrypt.hash(fixedOtp, 10);
     const expireAt = new Date(Date.now() + 10 * 60 * 1000);
