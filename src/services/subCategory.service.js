@@ -5,11 +5,14 @@ export const getAllSubCategoryservice = async ({filter,page=1,limit=15}) => {
         page=Number(page);
     limit=Number(limit);
     const skip = (page-1)*limit;
+
+    const totalSubCategory= await SubCategory.countDocuments(filter);
     const subCategory = await SubCategory.find(filter).skip(skip).limit(limit).lean();
     return {
         message: "successfull",
         data: {
-            subCategory
+            subCategory,
+            totalPage:Math.ceil(totalSubCategory/limit)
         }
     }
 }

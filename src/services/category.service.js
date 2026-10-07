@@ -7,11 +7,13 @@ export const getAllcategoryService = async (page=1,limit=5) => {
     limit=Number(limit);
 
     const skip = (page-1)*limit;
+    const totalProduct= await Category.countDocuments();
     const category = await Category.find().sort({createdAt:-1}).skip(skip).limit(limit);
     return {
                  message: "all category",
         data: {
-            category
+            category,
+            totalPage:Math.ceil(totalProduct/limit)
         }
     }
 }
