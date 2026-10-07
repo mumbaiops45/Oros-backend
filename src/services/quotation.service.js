@@ -65,6 +65,28 @@ const parseObject = (raw) => {
 };
 
 
+/*
+A line's variant arrives as [{ name, value }] — the same pairs the cart
+stores. An object map ({ Color: "Red" }) is accepted too, and anything
+blank is dropped so it never trips the schema's required fields.
+*/
+const parseOptions = (raw) => {
+
+    const list = Array.isArray(raw)
+        ? raw
+        : raw && typeof raw === "object"
+            ? Object.entries(raw).map(([name, value]) => ({ name, value }))
+            : [];
+
+    return list
+        .map((option) => ({
+            name: String(option?.name ?? "").trim(),
+            value: String(option?.value ?? "").trim()
+        }))
+        .filter((option) => option.name && option.value);
+};
+
+
 const parseItems = (raw) => {
 
     return parseList(raw).map((item) => {
@@ -77,7 +99,9 @@ const parseItems = (raw) => {
 
         return {
             product: item.productId || item.product || null,
-            qty
+            qty,
+            selectedOptions: parseOptions(item.selectedOptions),
+            personalisation: item.personalisation || {}
         };
     });
 };
@@ -157,29 +181,51 @@ export const createQuotationService = async (userId, data) => {
         }
     });
 
-    // 2. Create quotation items
-    const lines = parseItems(data.items);
+// 2. Create quotation items
 
-    const quotationItems = await QuotationItem.insertMany(
-        lines.length > 0
-            ? lines.map((line) => ({
+const lines = parseItems(data.items);
+
+const quotationItems = await QuotationItem.insertMany(
+    lines.length > 0
+        ? lines.map((line) => ({
+            quotation: quotation._id,
+
+            product: line.product,
+
+            qty: Number(line.qty) || 1,
+
+            selectedOptions: line.selectedOptions || [],
+
+            personalisation: line.personalisation || {},
+
+            unitPrice: Number(line.unitPrice) || 0,
+
+            tax: Number(line.tax) || 0,
+
+            amount: Number(line.amount) || 0
+        }))
+        : [
+            {
                 quotation: quotation._id,
-                product: line.product,
-                qty: line.qty
-            }))
-            : [
-                {
-                    quotation: quotation._id,
-                    product: data.productId || null,
-                    // a custom quote with no catalogue product picked has no
-                    // per-unit quantity yet — the desk prices it later, so
-                    // this is just a placeholder row, not a real qty
-                    qty: Number(data.qty) || 1
-                }
-            ]
-    );
 
-    const quotationItem = quotationItems[0];
+                product: data.productId || null,
+
+                qty: Number(data.qty) || 1,
+
+                selectedOptions: [],
+
+                personalisation: {},
+
+                unitPrice: 0,
+
+                tax: 0,
+
+                amount: 0
+            }
+        ]
+);
+
+const quotationItem = quotationItems[0];
 
     // 3. Create quotation files
     const quotationFiles = [];
@@ -267,6 +313,44 @@ export const updateQuotationService = async (
     Update quotation
     --------------------------------
     */
+
+    /*
+    --------------------------------
+    Customer accepts the desk's price
+    --------------------------------
+    The customer can't flip the status themselves — their accept is only
+    a message in the thread, and the admin moves it from QUOTED to ACCEPTED.
+    */
+
+    if (data.status === "ACCEPTED") {
+        delete data.status;
+
+        if (quotation.status !== "QUOTED") {
+            throw new Error(
+                "Only a quoted quotation can be accepted"
+            );
+        }
+
+        await QuotationMessage.create({
+            quotation: quotation._id,
+            sender: "CUSTOMER",
+            message: `✅ I accept this quotation (₹${quotation.total}). Please confirm.`
+        });
+
+        const admin = await User.findOne({
+            role: "admin"
+        });
+
+        if (admin) {
+            const notification = await Notification.create({
+                recipient: admin._id,
+                type: "QUOTATION_ACCEPTED",
+                message: `${user?.name || "The customer"} accepted the quotation ${quotation.refNumber} — confirm it to let them pay`,
+                referenceId: quotation._id
+            });
+            io.to("admin").emit("new_notification", notification);
+        }
+    }
 
     if (data.status !== undefined) {
         if (data.status !== "CANCELLED") {
@@ -821,6 +905,61 @@ export const getQuotationService = async (user, query) => {
                 localField: "_id",
                 foreignField: "quotation",
                 as: "items"
+            }
+        },
+        {
+            // Attach the product name/sku to each line item
+            $lookup: {
+                from: "products",
+                localField: "items.product",
+                foreignField: "_id",
+                as: "itemProducts",
+                pipeline: [
+                    {
+                        $project: {
+                            name: 1,
+                            sku: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $addFields: {
+                items: {
+                    $map: {
+                        input: "$items",
+                        as: "item",
+                        in: {
+                            $mergeObjects: [
+                                "$$item",
+                                {
+                                    product: {
+                                        $ifNull: [
+                                            {
+                                                $first: {
+                                                    $filter: {
+                                                        input: "$itemProducts",
+                                                        as: "p",
+                                                        cond: {
+                                                            $eq: ["$$p._id", "$$item.product"]
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "$$item.product"
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                itemProducts: 0
             }
         },
         {

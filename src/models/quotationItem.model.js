@@ -21,6 +21,30 @@ const quotationItemSchema = new mongoose.Schema(
             required: true
         },
 
+        selectedOptions: {
+            type: [
+                {
+                    name: {
+                        type: String,
+                        required: true,
+                        trim: true
+                    },
+
+                    value: {
+                        type: String,
+                        required: true,
+                        trim: true
+                    }
+                }
+            ],
+            default: []
+        },
+
+        personalisation: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+        },
+
         unitPrice: {
             type: Number,
             min: 0,
@@ -44,4 +68,5 @@ const quotationItemSchema = new mongoose.Schema(
     }
 );
 
-export default mongoose.models.quotationItem || mongoose.model("quotationItem",quotationItemSchema);
+export default mongoose.models.quotationItem ||
+    mongoose.model("quotationItem", quotationItemSchema);
